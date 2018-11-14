@@ -8,32 +8,62 @@ Created on Mon Oct 29 11:10:02 2018
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import cm, colors
+import datetime
+from matplotlib import colors
+from pathlib import Path
 
-fileName = "parScan181107.npz"
+
+now = datetime.datetime.now()
+
+saveNameMod = "HyperGeomSampling"
+
+
+
+data_folder = Path("Data/")
+fileName = "2018-11-13_15_00"
+fileName = "parScan" + fileName + ".npz"
+fileName = data_folder / fileName
+
+save_folder = Path("Figures/")
+saveName = "heatmap"+now.strftime("_%Y-%m-%d_")+saveNameMod + ".pdf"
+saveName = save_folder / saveName
 
 file = np.load(fileName)
 
-metaData = file['metaData'][0]
-data = file['data']
+modelParList = file['modelParList']
+parRange = file['parRange']
+parOrder = file['parOrder']
 
-#metaData["defIdx"] = np.array([1, 1, 2, 3, 1])
+data1D = file['data']
 
-numTau = metaData['TAU_H'].size
-numGamma = metaData['gamma'].size
+#parRange = [gamma_vec, tauH_vec, n0_vec, mig_vec, rr_vec, K_vec] 
 
-numR = metaData['r'].size
-numK = metaData['K'].size
+ndSize = [ x.size for x in parRange]
+data = np.reshape(data1D, ndSize)
 
-n0V = np.log10(metaData['n0'])
-migV = np.log10(metaData['mig'])
+#parOrder = np.array(['gamma','tauH','n0','mig','r','K'])
 
-plt.rcParams.update({'font.size': 18})
+gammaIndex = np.asscalar(np.nonzero(parOrder=="gamma")[0])
+tauIndex = np.asscalar(np.nonzero(parOrder=="tauH")[0])
+n0Index = np.asscalar(np.nonzero(parOrder=="n0")[0])
+migIndex = np.asscalar(np.nonzero(parOrder=="mig")[0])
+rIndex = np.asscalar(np.nonzero(parOrder=="r")[0])
+KIndex = np.asscalar(np.nonzero(parOrder=="K")[0])
+
+
+numGamma = ndSize[gammaIndex]
+numTau = ndSize[tauIndex]
+numR = ndSize[rIndex]
+numK = ndSize[KIndex]
+
+n0V = parRange[n0Index]
+migV = parRange[migIndex]
+
+plt.rcParams.update({'font.size': 16})
 fig, axs = plt.subplots(numTau*numR, numGamma*numK)
 
 w = 12000 / 300
 h = 8000 / 300
-
 
 
 #fig.suptitle('Multiple images')
@@ -74,7 +104,7 @@ plt.draw()
 fig.set_size_inches(w,h)
 #fig.set_dpi = 150
 
-plt.savefig("heatMap", dpi=300, format="pdf")
+plt.savefig(saveName, dpi=300, format="pdf")
 
 #plt.show()
 

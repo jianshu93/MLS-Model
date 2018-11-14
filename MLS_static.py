@@ -13,8 +13,8 @@ import matplotlib.pyplot as plt
 import time
 from numba import jit, void, float64, int64 
 from numba.types import UniTuple
-import gc
-
+#import gc
+import traceback
 #MODEL_PAR = {
 #    "maxT"  : 2000, 
 #    "sampleT": 1.,
@@ -165,7 +165,7 @@ def select_host_to_die(c, randNum):
     return id_group
 
 
-def host_birth_composition(cPar, dPar, n0, K):
+def host_birth_composition_norm(cPar, dPar, n0, K):
     densPar = cPar + dPar
     fracPar = cPar / densPar
     densOff = n0
@@ -173,22 +173,63 @@ def host_birth_composition(cPar, dPar, n0, K):
     expC = densOff * fracPar  #np
     stdC = math.sqrt(expC * (1-fracPar) / K) #np(1-p)
     minC = (0 - expC) / stdC
-    maxC = (min(cPar,densOff) - expC) / stdC
+    maxC = (min(densPar,densOff) - expC) / stdC
 
     cOff = st.truncnorm.rvs(minC, maxC) * stdC + expC
-
-    dOffTemp = densOff - cOff
-    dOff = min(dPar, dOffTemp)
+    dOff = densOff - cOff
+    
     return (cOff, dOff)
 
 
-def host_birth_composition_discrete(cPar, dPar, n0, K):
-    densPar = cPar + dPar
-    fracPar = cPar / densPar
-    numOff = max(int(np.round(n0*K)),1)   
+def host_birth_composition_binom(cPar, dPar, n0, K):
+    densPar = np.asscalar(cPar + dPar)
+    fracPar = np.asscalar(cPar / densPar)
+    
+    numParInt = int(np.round(densPar*K))
+    
+    if numParInt>0:
+        cParInt = int(np.round(fracPar*densPar*K))
+        fracParInt = cParInt / numParInt
+    
+        numOffTarget = int(np.round(n0*K))    
+        numOff = min(numOffTarget,numParInt)
+        
+        try:
+            cOffInt = st.binom.rvs(numOff, fracParInt)
+        except:
+            raise Exception('problem with binom')
+        cOff = (cOffInt)/K
+        dOff = (numOff - cOffInt)/K   
+    else:
+        cOff = 0
+        dOff = 0
+    return (cOff, dOff)
 
-    cOff = float(st.binom.rvs(numOff, fracPar))/K
-    dOff = float(numOff - cOff)/K
+
+def host_birth_composition_hypgeo(cPar, dPar, n0, K):
+    densPar = np.asscalar(cPar + dPar)
+    fracPar = np.asscalar(cPar / densPar)
+    
+    numParInt = int(np.round(densPar*K))
+    cParInt = int(np.round(fracPar*densPar*K))
+
+    numOffTarget = int(np.round(n0*K))    
+    numOff = min(numOffTarget,numParInt)
+    
+    if (numOff>0) & (numParInt>0):
+        #numOff = max(int(np.round(n0*K)),1)  
+        try:
+            cOffInt = st.hypergeom.rvs(numParInt, cParInt, numOff)
+        except:
+            print("hi")
+            print((numParInt, cParInt, numOff))
+            raise Exception('problem with hypergeom')
+        cOff = (cOffInt)/K
+        dOff = (numOff - cOffInt)/K    
+    else:
+        cOff = 0
+        dOff = 0
+    
        
     return (cOff, dOff)
 
@@ -216,10 +257,29 @@ def host_birth_event(c, d, randNum, model_par):
     
     id_group = select_host_to_reproduce(c, randNum, B_H, TAU_H, dt)
     
-    cOff, dOff = host_birth_composition_discrete(c[id_group],\
-                                        d[id_group],\
-                                        n0, K)
+    
+    if model_par['sampling']=="norm":
+        cOff, dOff = host_birth_composition_norm(c[id_group],\
+                                            d[id_group],\
+                                            n0, K)
+    elif model_par['sampling']=="binom":
+        cOff, dOff = host_birth_composition_binom(c[id_group],\
+                                                     d[id_group],\
+                                                     n0, K)
+    elif model_par['sampling']=="hypgeo":
+        cOff, dOff = host_birth_composition_hypgeo(c[id_group],\
+                                                     d[id_group],\
+                                                     n0, K)  
+    else:
+       raise Exception('Unknown sampling procedure')     
      
+        
+    cPar = max(0,c[id_group]-cOff) 
+    dPar = max(0,d[id_group]-dOff) 
+
+    c[id_group] = cPar
+    d[id_group] = dPar
+
     cNew = np.append(c,cOff)
     dNew = np.append(d,dOff)
     
@@ -393,17 +453,17 @@ def single_run_finalstate(MODEL_PAR):
     output_matrix['r'] = MODEL_PAR['r']
     output_matrix['K'] = MODEL_PAR['K']   
     
-    output_matrix2= np.array([Output['F_mav'][-1], Output['F_T_std'][-1], \
-                              Output['N_T_av'][-1], Output['N_T_std'][-1],\
-                              Output['H_T'][-1]])
+#    output_matrix2= np.array([Output['F_mav'][-1], Output['F_T_std'][-1], \
+#                              Output['N_T_av'][-1], Output['N_T_std'][-1],\
+#                              Output['H_T'][-1]])
+#    
+#    output_list= (Output['F_mav'][-1], Output['F_T_std'][-1], \
+#                              Output['N_T_av'][-1], Output['N_T_std'][-1],\
+#                              Output['H_T'][-1])
+#    
+#    #gc.collect()
     
-    output_list= (Output['F_mav'][-1], Output['F_T_std'][-1], \
-                              Output['N_T_av'][-1], Output['N_T_std'][-1],\
-                              Output['H_T'][-1])
-    
-    gc.collect()
-    
-    return output_list
+    return output_matrix
 
 
 

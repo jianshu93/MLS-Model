@@ -36,7 +36,7 @@ import traceback
  
 # calculates time step to use to keep max 1 host event per step
 def calc_timestep(model_par):
-    dtVec = np.logspace(-5, 1, 17)
+    dtVec = np.logspace(-5, -2, 17)
     
     maxHostProp = 2 * (1 + model_par["B_H"])**2 \
         / (model_par["D_H"] * model_par["TAU_H"])
@@ -164,12 +164,27 @@ def select_host_to_die(c, randNum):
     id_group = int(np.floor(randNum*numHost))
     return id_group
 
+#%% birth composition draw fraction from normal distribution with fixed variance
+def host_birth_composition_fixedvar(cPar, dPar, n0, sigma):
+    densPar = np.asscalar(cPar + dPar)
+    fracPar = np.asscalar(cPar / densPar)
+    #constant variance
+    minFrac = (0 - fracPar) / sigma
+    maxFrac = (1 - fracPar) / sigma
 
+    fracOff = st.truncnorm.rvs(minFrac, maxFrac) * sigma + fracPar
+
+    cOff = n0 * fracOff
+    dOff = n0 * (1-fracOff)
+    
+    return (cOff, dOff)
+
+#%% birth composition continuous approximation to hypergeometric dirstribution
 def host_birth_composition_norm(cPar, dPar, n0, K):
-    densPar = cPar + dPar
-    fracPar = cPar / densPar
+    densPar = np.asscalar(cPar + dPar)
+    fracPar = np.asscalar(cPar / densPar)
     densOff = n0
-    #continous limit of binomial distribution
+    
     expC = densOff * fracPar  #np
     stdC = math.sqrt(expC * (1-fracPar) / K) #np(1-p)
     minC = (0 - expC) / stdC
@@ -180,7 +195,7 @@ def host_birth_composition_norm(cPar, dPar, n0, K):
     
     return (cOff, dOff)
 
-
+#%% birth composition discrete binomial distribution
 def host_birth_composition_binom(cPar, dPar, n0, K):
     densPar = np.asscalar(cPar + dPar)
     fracPar = np.asscalar(cPar / densPar)
@@ -205,7 +220,7 @@ def host_birth_composition_binom(cPar, dPar, n0, K):
         dOff = 0
     return (cOff, dOff)
 
-
+#%% birth composition discrete hypergeometric distribution
 def host_birth_composition_hypgeo(cPar, dPar, n0, K):
     densPar = np.asscalar(cPar + dPar)
     fracPar = np.asscalar(cPar / densPar)
@@ -254,6 +269,7 @@ def host_birth_event(c, d, randNum, model_par):
     dt = model_par["dt"]
     n0 = model_par['n0']
     K = model_par['K']
+    sigma = model_par['sigmaBirth']
     
     id_group = select_host_to_reproduce(c, randNum, B_H, TAU_H, dt)
     
@@ -262,6 +278,10 @@ def host_birth_event(c, d, randNum, model_par):
         cOff, dOff = host_birth_composition_norm(c[id_group],\
                                             d[id_group],\
                                             n0, K)
+    elif model_par['sampling']=="fixedvar":
+        cOff, dOff = host_birth_composition_fixedvar(c[id_group],\
+                                                     d[id_group],\
+                                                     n0, sigma)
     elif model_par['sampling']=="binom":
         cOff, dOff = host_birth_composition_binom(c[id_group],\
                                                      d[id_group],\

@@ -11,19 +11,19 @@ import MLS_static as mlss
 MODEL_PAR = {
                 #fixed model parameters
                 "sampling" : "fixedvar",
-                "maxT"  : 4000., 
+                "maxT"  : 50000., 
                 "sampleT": 1.,
                 "mu"    : 1.E-5,
                 "B_H"   : 3.,
                 "D_H"   : 1./40.,
                 #variable model parameters
-                "gamma" : 0.01,
-                "TAU_H" : 100,
+                "gamma" : 0.001,
+                "TAU_H" : 1000,
                 "n0"    : 1E-5,
                 "mig"   : 1E-8,
                 "r"     : 1,
                 "K"     : 1E6,
-                "sigmaBirth" : 0.001,
+                "sigmaBirth" : 0.2,
                 #fixed intial condition
                 "NUMGROUP" : 100,  
                 "F0" : 0.5,

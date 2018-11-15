@@ -364,7 +364,7 @@ def run_model_fixed_parameters(model_par):
     Num_t = int(np.ceil(model_par['maxT'] / model_par['dt']))
     samplingInterval = model_par['sampleT']
     Num_t_sample = int(np.ceil(model_par['maxT'] / samplingInterval)+1)
-    timeAvWindow = 100 #2 * int(np.ceil(model_par['TAU_H']))
+    timeAvWindow = 1000 #2 * int(np.ceil(model_par['TAU_H']))
 
     #init randNum
     RAND_T = create_randMat(Num_t)
@@ -422,7 +422,7 @@ def run_model_fixed_parameters(model_par):
             sample_model(CVec, DVec, Output, sampleIndex, timeAvWindow)
             Output['time'][sampleIndex] = currT
             
-            if Output['rms_err'][sampleIndex] < 1E-5:
+            if Output['rms_err'][sampleIndex] < 5E-3:
                 indexBelowTr += 1
                 
             if  indexBelowTr >= 1:  
@@ -441,7 +441,10 @@ def plot_data(dataStruc, FieldName):
     plt.plot(dataStruc['time'], dataStruc[FieldName], label=FieldName)
     plt.xlabel("time")
     maxTData =dataStruc['time'].max()
-    plt.xlim((0,maxTData))
+    try:
+        plt.xlim((0,maxTData))
+    except:
+        print(maxTData)
     return
   
 def single_run_finalstate(MODEL_PAR):
@@ -461,7 +464,16 @@ def single_run_finalstate(MODEL_PAR):
     output_matrix['F_T_av'] = Output['F_T_av'][-1]
     output_matrix['F_T_std'] = Output['F_T_std'][-1]
     output_matrix['F_mav'] = Output['F_mav'][-1]
-
+    
+    #store nan if not reached steady state
+    Num_t = Output.size
+    Num_t_end = int(np.ceil(MODEL_PAR['maxT'] / MODEL_PAR['sampleT'])+1)
+    
+    if Num_t < Num_t_end:
+        output_matrix['F_mav_ss'] = Output['F_mav'][-1]
+    else:
+        output_matrix['F_mav_ss'] = np.nan
+        
     output_matrix['N_T_av'] = Output['N_T_av'][-1]
     output_matrix['N_T_std'] = Output['N_T_std'][-1]
     output_matrix['H_T'] = Output['H_T'][-1]

@@ -22,15 +22,16 @@ tauH_vec = np.logspace(2, 4, 3)
 n0_vec = np.logspace(-12, -2, 11)
 mig_vec = np.logspace(-12, -2, 11) 
 rr_vec = np.array([1.])
-K_vec = np.array([1., 1.E3, 1.E6, 1.E9, 1.E12])
+K_vec = np.array([1.]) #, 1.E3, 1.E6, 1.E9, 1.E12])
+sigma_vec = np.array([0.2, 0.1, 0.05, 0.01, 0.005, 0.001])
 
-parOrder = np.array(['gamma','tauH','n0','mig','r','K'])
-parRange = [gamma_vec, tauH_vec, n0_vec, mig_vec, rr_vec, K_vec] 
+parOrder = np.array(['gamma','tauH','n0','mig','r','K', 'sigma'])
+parRange = [gamma_vec, tauH_vec, n0_vec, mig_vec, rr_vec, K_vec, sigma_vec] 
     
 def createModelPar(input):
     modelPar = {
                 #fixed model parameters
-                "sampling" : "hypgeo",
+                "sampling" : "fixedvar",
                 "maxT"  : 10000., 
                 "sampleT": 1.,
                 "mu"    : 1.E-5,
@@ -43,6 +44,7 @@ def createModelPar(input):
                 "mig"   : input[3],
                 "r"     : input[4],
                 "K"     : input[5],
+                "sigmaBirth" : input[6],
                 #fixed intial condition
                 "NUMGROUP" : 100.,  
                 "F0" : 0.5,

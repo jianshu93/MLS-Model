@@ -453,7 +453,7 @@ def single_run_finalstate(MODEL_PAR):
             
     dType = np.dtype([ \
               ('F_T_av', 'f8'), ('F_T_std', 'f8'), ('F_mav', 'f8'), \
-              ('N_T_av', 'f8'), ('N_T_std', 'f8'), \
+              ('F_mav_ss', 'f8'), ('N_T_av', 'f8'), ('N_T_std', 'f8'), \
               ('H_T', 'f8'),   \
               ('gamma', 'f8'), ('tau_H', 'f8'), \
               ('n0', 'f8'),    ('mig', 'f8'), \

@@ -17,12 +17,12 @@ MODEL_PAR = {
                 "B_H"   : 3.,
                 "D_H"   : 1./40.,
                 #variable model parameters
-                "gamma" : 0.001,
-                "TAU_H" : 1000,
-                "n0"    : 1E-5,
-                "mig"   : 1E-8,
+                "gamma" : 0.01,
+                "TAU_H" : 100,
+                "n0"    : 1E-3,
+                "mig"   : 1E-12,
                 "r"     : 1,
-                "K"     : 1E6,
+                "K"     : 1,
                 "sigmaBirth" : 0.2,
                 #fixed intial condition
                 "NUMGROUP" : 100,  

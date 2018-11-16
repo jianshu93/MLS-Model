@@ -9,17 +9,16 @@ Created on Mon Oct 29 11:10:02 2018
 import numpy as np
 import matplotlib.pyplot as plt
 import datetime
-from matplotlib import colors
+#from matplotlib import colors
 from pathlib import Path
-import matplotlib.patches as patches
 
 now = datetime.datetime.now()
 
 saveNameMod = "FixedVariance"
 
 data_folder = Path("Data/")
-fileName = "2018-11-15_13_35"
-fileName = "parScan" + fileName + ".npz"
+fileName = "20181115_20h15_fixedvar"
+fileName = "parScan_" + fileName + ".npz"
 fileName = data_folder / fileName
 
 save_folder = Path("Figures/")
@@ -65,9 +64,10 @@ plt.rcParams.update({'font.size': 8})
 
 def create_fig(nRow,nCol):
     fig, axs = plt.subplots(nRow, nCol)
-    w = 16
-    h = 12
-    fig.set_size_inches(w,h)
+    w = 14
+    h = 6
+    fig.set_figwidth(w, forward=True)
+    #fig.set_size_inches(w,h)
     return fig, axs
 
 def plot_heatmap(images,axs,data,xvec,yvec):
@@ -75,10 +75,11 @@ def plot_heatmap(images,axs,data,xvec,yvec):
 
     currData = np.log10(data).transpose()
                   
-    images.append(axs.imshow(currData, cmap=cmap, \
+    axl = axs.imshow(currData, cmap=cmap, \
                     interpolation='nearest', \
                     extent=[xvec[0],xvec[-1],yvec[0],yvec[-1]], \
-                    origin='lower'))
+                    origin='lower', \
+                    vmin=-3, vmax=0)
     
     xticks = [xvec[0], xvec[-1]]
     xtickNames = ["%.0f" %np.log10(x) for x in xticks]
@@ -96,12 +97,14 @@ def plot_heatmap(images,axs,data,xvec,yvec):
     axs.set_xticklabels(xtickNames)
     axs.set_yticklabels(ytickNames)
     axs.label_outer()
-    return
+    
+    axs.set_aspect('equal')
+    return axl
 
-def make_fig_nice(fig,images):
-    norm = colors.Normalize(vmin=-3, vmax=0)
-    for im in images:
-        im.set_norm(norm)
+def make_fig_nice(fig,axs):
+    #norm = colors.Normalize(vmin=-3, vmax=0)
+    #for im in images:
+    #    im.set_norm(norm)
     fig.colorbar(images[0], ax=axs, orientation='vertical', fraction=.1, label="log10 fraction cooperator")
     plt.draw()
     return
@@ -113,11 +116,11 @@ def addAnnotation(curAx,labels):
                 verticalalignment='center', \
                 transform=curAx.transAxes)
     elif len(labels)==2:
-        curAx.text(0.5, 0.3, labels[0], \
+        curAx.text(0.7, 0.5, labels[0], \
                 horizontalalignment='center', \
                 verticalalignment='bottom', \
                 transform=curAx.transAxes)
-        curAx.text(0.5, 0.05, labels[1], \
+        curAx.text(0.7, 0, labels[1], \
                 horizontalalignment='center', \
                 verticalalignment='bottom', \
                 transform=curAx.transAxes)
@@ -149,9 +152,13 @@ for ss in range(numSig):
                 addAnnotation(axs[00, curC],curText)
                 
             currData = data['F_mav_ss'][gg, tt, :, :, rindex, kindex, ss].squeeze()
-            plot_heatmap(images,axs[curR, curC],currData,n0V,migV)
-                        
-make_fig_nice(fig,images)
+            axl = plot_heatmap(images,axs[curR, curC],currData,n0V,migV)
+ 
+
+plt.subplots_adjust(left=0.05, bottom=0.1, right=1, top=1, wspace=0.12, hspace=0.18)
+fig.colorbar(axl, ax=axs, orientation='vertical', shrink=.6, label="log10 fraction cooperator")
+plt.draw()
+                       
 plt.savefig(saveName, dpi=300, format="pdf")
 
 #%%

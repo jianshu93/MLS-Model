@@ -457,7 +457,8 @@ def single_run_finalstate(MODEL_PAR):
               ('H_T', 'f8'),   \
               ('gamma', 'f8'), ('tau_H', 'f8'), \
               ('n0', 'f8'),    ('mig', 'f8'), \
-              ('r', 'f8'),     ('K', 'f8')])     
+              ('r', 'f8'),     ('K', 'f8'), \
+              ('sigmaBirth', 'f8')])     
 
     output_matrix = np.zeros(1, dType)
     
@@ -483,7 +484,9 @@ def single_run_finalstate(MODEL_PAR):
     output_matrix['n0'] = MODEL_PAR['n0']
     output_matrix['mig'] = MODEL_PAR['mig']
     output_matrix['r'] = MODEL_PAR['r']
-    output_matrix['K'] = MODEL_PAR['K']   
+    output_matrix['K'] = MODEL_PAR['K']  
+    output_matrix['sigmaBirth'] = MODEL_PAR['sigmaBirth']   
+
     
 #    output_matrix2= np.array([Output['F_mav'][-1], Output['F_T_std'][-1], \
 #                              Output['N_T_av'][-1], Output['N_T_std'][-1],\

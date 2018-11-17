@@ -12,7 +12,7 @@ import scipy.stats as st
 import scipy.sparse as spar
 import matplotlib.pyplot as plt
 import time
-from numba import jit, void, float64, int64 
+from numba import jit, void, f8, i8 
 from numba.types import UniTuple, Tuple
 
 #import gc
@@ -81,16 +81,16 @@ def create_randMat(Num_t):
     return randMat
 
 
-@jit(UniTuple(float64,2)(float64[:,:], float64[:,:], int64))    
-def calc_mean_fraction(groupVec, invVec, nGroup):
-    totalInvest = invVec @ groupVec 
-    F_av = totalInvest / nGroup
-    N_av = groupVec.sum() / nGroup
+@jit(UniTuple(f8,2)(f8[:,::1], f8[:], i8))    
+def calc_mean_fraction(gMat, gammaVec, nGroup):
+    invPerGroup = gMat @ gammaVec 
+    F_av = invPerGroup.mean()
+    N_av = gMat.sum() / nGroup
 
     return (F_av,N_av)
 
 
-@jit(float64(float64[:], int64, int64))    
+@jit(f8(f8[:], i8, i8))    
 def calc_moving_av(f_t, curr_idx, windowLength):
     start_idx=max(0,curr_idx-windowLength+1)
     movingAv = f_t[start_idx:curr_idx].mean()
@@ -98,7 +98,7 @@ def calc_moving_av(f_t, curr_idx, windowLength):
     return movingAv
 
 
-@jit(float64(float64[:], int64, int64))    
+@jit(f8(f8[:], i8, i8))    
 def calc_rms_error(mav_t, curr_idx, windowLength):
     start_idx=max(0,curr_idx-windowLength+1)
     
@@ -110,8 +110,11 @@ def calc_rms_error(mav_t, curr_idx, windowLength):
    
     return rms
 
-def sample_model(groupVec, invVec, stMat, output, OutputState, nGroup, sample_idx, currT, movingAvWind):  
-    F_av, N_av = calc_mean_fraction(groupVec, invVec, nGroup)
+def sample_model(gMat, gammaVec, output, OutputState, sample_idx, currT, movingAvWind):  
+    
+    nGroup = gMat.shape[0]
+    
+    F_av, N_av = calc_mean_fraction(gMat, gammaVec, nGroup)
     
     output['F_T_av'][sample_idx] = F_av
     output['N_T_av'][sample_idx] = N_av
@@ -129,8 +132,7 @@ def sample_model(groupVec, invVec, stMat, output, OutputState, nGroup, sample_id
 
     output['time'][sample_idx] = currT
 
-    stateSample = stMat @ groupVec
-    OutputState[sample_idx,:] = np.squeeze(stateSample)
+    OutputState[sample_idx,:] = gMat.mean(axis=0)
 
     sample_idx += 1
     
@@ -141,7 +143,7 @@ def select_host_to_die(numGroup, randNum):
     return id_group
 
 # birth composition draw fraction from normal distribution with fixed variance
-#@jit(float64[:](float64[:], float64))
+@jit(f8[:](f8[::1], f8))
 def host_birth_composition_copy(parComp, n0):
     densPar = parComp.sum()
 
@@ -151,6 +153,7 @@ def host_birth_composition_copy(parComp, n0):
 
     return offComp
 
+@jit(f8[:](f8[::1], f8, f8))
 def host_birth_composition_sample(parComp, n0, K):
     N0 = max(int(np.ceil(n0*K)),1)
     randNum = np.random.rand(N0)
@@ -171,7 +174,7 @@ def host_birth_composition_sample(parComp, n0, K):
     return offComp
 
 
-@jit(int64(float64[:,:], float64, float64, float64, float64, int64))
+@jit(i8(f8[:,::1], f8, f8, f8, f8, i8), nopython=True)
 def select_host_to_reproduce(groupMat, randNum, B_H, TAU_H, dt, numBins):
     
     dGamma = 1 / numBins    
@@ -188,7 +191,7 @@ def select_host_to_reproduce(groupMat, randNum, B_H, TAU_H, dt, numBins):
     
     index = np.arange(cumPropensity.size)
     id_group = index[(cumPropensity>randNumScaled)][0]
-    id_group = np.asscalar(id_group)
+    
     
     return id_group    
 
@@ -208,7 +211,7 @@ def host_birth_event(groupMat, randNum, model_par):
     parComp = groupMat[id_group, :]
     if model_par['sampling']=="copy":
         offComp = host_birth_composition_copy(parComp, n0)
-    if model_par['sampling']=="sample":
+    elif model_par['sampling']=="sample":
         offComp = host_birth_composition_sample(parComp, n0, K)
     else:
        raise Exception('Unknown sampling procedure')     
@@ -229,9 +232,6 @@ def host_death_event(groupMatrix, randNum):
     
     return groupMatNew
         
-#@jit(UniTuple(float64[:,:], 3)
-#@jit(void(float64[:,:], float64, float64, float64, int64))
-#@jit(UniTuple(float64[:,:], 3)(float64[:,:], float64, float64, int64))  
 def create_update_matrix_sparse(numGroup, r, mu, mig, numBins):#groupMatrix):#, r, mu, mig, numBins):
     #extract model parameters
     dGamma = 1 / numBins    
@@ -348,29 +348,29 @@ def crop_update_matrix(bmig_mat, death_mat, invest_vec, ngroup, numBins):
 
     return (birthMigMatrix, deathMatrix, investVec)
  
-@jit(Tuple((float64[:,:], int64))(float64[:,:], int64)) 
+@jit(Tuple((f8[:,:], i8))(f8[:,:], i8)) 
 def group_mat_to_vec(groupMatrix, numBins):
     numGroup = groupMatrix.shape[0]
     #reshape group matrix to vector form
     groupVec = np.reshape(groupMatrix,(numGroup*numBins,1))
     return (groupVec, numGroup)
 
-@jit(float64[:,:](float64[:,:], int64, int64)) 
+@jit(f8[:,:](f8[:,:], i8, i8)) 
 def group_vec_to_mat(groupVec, numGroup, numBins):   
     groupMat = np.reshape(groupVec,(numGroup, numBins))
     return groupMat
 
 #updates communtity composition during timestep dt
 #@profile    
-#@jit(void(float64[:,:], float64[:,:], float64[:,:], float64))
+#@jit(void(f8[:,:], f8[:,:], f8[:,:], f8))
 def update_comm(x, birthMigMatrix, deathMatrix, dt):
     dx = (birthMigMatrix @ x) - (deathMatrix @ x) * x
     x += dx * dt
     return  
       
 
-@jit(UniTuple(float64,2)(float64[:,:], float64[:,:], int64, \
-    float64, float64,  float64, float64))
+@jit(UniTuple(f8,2)(f8[:,:], f8[:,:], i8, \
+    f8, f8,  f8, f8))
 def host_propensity(groupVec, invVec, NumHost, dt, B_H, D_H, TAU_H):   
     totalInvest = invVec @ groupVec   
     totBirthProp = dt / TAU_H * (NumHost + B_H * totalInvest) 
@@ -379,8 +379,7 @@ def host_propensity(groupVec, invVec, NumHost, dt, B_H, D_H, TAU_H):
     return (totBirthProp, totDeathProp)
 
 
-@jit(UniTuple(float64,2)(float64[:,:], float64[:], \
-    float64, float64,  float64, float64))
+@jit(UniTuple(f8,2)(f8[:,::1], f8[::1], f8, f8,  f8, f8), nopython=True)
 def host_propensityLocal(gMat, gammaVec, dt, B_H, D_H, TAU_H): 
     NumHost = gMat.shape[0]
     invPerGroup = gMat @ gammaVec   
@@ -406,7 +405,9 @@ def init_output_matrix(Num_t_sample, NumBins):
 
     return Output, OutputState
 
-#@jit(void(float64[:,:], float64[:,:], float64, float64, float64))
+#@jit(void(f8[:,:], f8[:,:], f8, f8, f8))
+#@jit( nopython=True) 
+@jit(void(f8[:,::1], f8[:,::1], f8, f8, f8), nopython=True)   
 def update_comm_loc(gMat, locBMMat, r, mig, dt):
     nGroup = gMat.shape[0]
     
@@ -416,15 +417,14 @@ def update_comm_loc(gMat, locBMMat, r, mig, dt):
     migIn = globTypeFrac * mig / (nGroup - 1)
     deathRatePerGroup = r * densPerGroup
     
-    #dx = np.empty_like(gMat)
+    dx = np.empty_like(gMat)
     for i in range(nGroup):
         currGroup = gMat[i,:]
         currBMout = locBMMat @ currGroup 
         currDeath = currGroup * deathRatePerGroup[i]
-        #currDx =  currBMout - currDeath + migIn
-        gMat[i,:] += currBMout - currDeath + migIn
+        dx[i,:] =  currBMout - currDeath + migIn
     
-    #gMat += dx * dt
+    gMat += dx * dt
     return  
 
 
@@ -447,56 +447,37 @@ def run_model_fixed_parameters(model_par):
     
     # init groups
     gMat = init_comm(model_par)
-    gVec, nGroup = group_mat_to_vec(gMat, numBins)
-    bmigMat, dMat, invVec, stMat = create_update_matrix_sparse(nGroup, r, mu, mig, numBins)
-
-
+    locBMMat, gammaVec = create_local_update_matrix(r, mu, mig, numBins)
+    
     #init output
     Output, OutputState = init_output_matrix(Num_t_sample, numBins)
 
     #init sample
     currT = 0
     sampleIndex = 0
-    sampleIndex = sample_model(gVec, invVec, stMat, Output, OutputState, nGroup, \
+    sampleIndex = sample_model(gMat, gammaVec, Output, OutputState, \
                         sampleIndex, currT, timeAvWindow)
-    
-    
-    #locBMMat = create_local_update_matrix(r, mu, mig, numBins)
-    
-
     
     #run time    
     for ti in range(Num_t):
         
         #update community
-        update_comm(gVec, bmigMat, dMat, dt)
-      
+        update_comm_loc(gMat, locBMMat, r, mig, dt)
+     
         #check if there is host event
-        birthProp, deathProp = host_propensity(gVec, invVec, nGroup, dt, \
+        birthProp, deathProp = host_propensityLocal(gMat, gammaVec, dt, \
                                                B_H, D_H, TAU_H)
         
         #process host events
         if rndMat[ti,0] < birthProp:
-            #convert groups to matrix form
-            gMat = group_vec_to_mat(gVec, nGroup, numBins)
             #process host birth event
-            gMatNew = host_birth_event(gMat, rndMat[ti,1], model_par)
-            #update matrices for new number of groups 
-            gVec, nGroup = group_mat_to_vec(gMatNew, numBins)
-            bmigMat, dMat, invVec, stMat = create_update_matrix_sparse(nGroup, r, mu, mig, numBins)
-
+            gMat = host_birth_event(gMat, rndMat[ti,1], model_par)
         elif rndMat[ti,0] < (birthProp + deathProp):
-            #convert groups to matrix form
-            gMat = group_vec_to_mat(gVec, nGroup, numBins)
             #process host death event
-            gMatNew = host_death_event(gMat, rndMat[ti,1])
-            #update matrices for new number of groups   
-            gVec, nGroup = group_mat_to_vec(gMatNew, numBins)
-            bmigMat, dMat, invVec, stMat = create_update_matrix_sparse(nGroup, r, mu, mig, numBins)
-
+            gMat = host_death_event(gMat, rndMat[ti,1])
+            
         #stop run if all hosts die
-        if  gVec.size==0:
-            Output = Output[0:sampleIndex]
+        if  gMat.shape[0]==0:
             break
 
         #update time
@@ -505,16 +486,18 @@ def run_model_fixed_parameters(model_par):
         #sample model at intervals
         nextSampleT = samplingInterval * sampleIndex
         if currT >= nextSampleT:
-            sample_model(gVec, invVec, stMat, Output, OutputState, nGroup, \
+            sampleIndex = sample_model(gMat, gammaVec, Output, OutputState, \
                         sampleIndex, currT, timeAvWindow)
-            
             
 #            #check if steady state has been reached
 #            if Output['rms_err'][sampleIndex] < 5E-3:
 #                Output = Output[0:sampleIndex]
+#                OutputState = OutputState[0:sampleIndex,:]
 #                break
             
-    gMat = group_vec_to_mat(gVec, nGroup, numBins)
+    
+    Output = Output[0:sampleIndex]
+    OutputState = OutputState[0:sampleIndex,:]
     
     return (Output, OutputState, gMat)
 
@@ -717,7 +700,7 @@ def single_run_with_plot(MODEL_PAR):
     
     maxTData =Output['time'].max()
     try:
-        axs.set_yticklabels([0, maxTData])
+        axs.set_yticklabels([0, round(maxTData)])
     except:
         print('oh no')
     
@@ -726,7 +709,7 @@ def single_run_with_plot(MODEL_PAR):
 #    plt.ylabel("err of mav") 
 #    
 #    
-    fig.set_size_inches(10,10)
+    fig.set_size_inches(4,4)
     plt.tight_layout()
 
     return Output

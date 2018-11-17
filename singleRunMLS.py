@@ -35,10 +35,10 @@ MODEL_PAR = {
 MODEL_PAR_EVOL = {
                 #fixed model parameters
                 "sampling" : "sample",
-                "maxT"  : 20., 
+                "maxT"  : 1000., 
                 "sampleT": 1.,
-                "mu"    : 0.02,
-                "B_H"   : 3.,
+                "mu"    : 0.01,
+                "B_H"   : 9.,
                 "D_H"   : 1./40.,
                 #variable model parameters
                 "gamma" : 0.01,
@@ -46,20 +46,20 @@ MODEL_PAR_EVOL = {
                 "n0"    : 1E-3,
                 "mig"   : 1E-6,
                 "r"     : 1.,
-                "K"     : 1E4,
+                "K"     : 1E3,
                 "sigmaBirth" : 0.2,
                 #fixed intial condition
                 "NUMGROUP" : 100,  
                 "numTypeBins" : 100,
                 "meanGamma0" : 0.5,
                 "stdGamma0" : 0.001,
-                "N0init" : 1
+                "N0init" : 1.
         }
 
 
 
-mlse.run_model_fixed_parameters_testlocal(MODEL_PAR_EVOL)
+#mlse.run_model_fixed_parameters_testlocal(MODEL_PAR_EVOL)
 
-#Output = mlse.single_run_with_plot(MODEL_PAR_EVOL)
+Output = mlse.single_run_with_plot(MODEL_PAR_EVOL)
 
 #Output = mlss.single_run_with_plot(MODEL_PAR)

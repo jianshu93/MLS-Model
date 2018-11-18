@@ -35,13 +35,13 @@ MODEL_PAR = {
 MODEL_PAR_EVOL = {
                 #fixed model parameters
                 "sampling" : "sample",
-                "maxT"  : 1000., 
-                "sampleT": 1.,
+                "maxT"  : 50000., 
+                "sampleT": 100.,
                 "mu"    : 0.01,
-                "B_H"   : 9.,
+                "B_H"   : 3.,
                 "D_H"   : 1./40.,
                 #variable model parameters
-                "gamma" : 0.01,
+                "cost" : 0.1,
                 "TAU_H" : 100.,
                 "n0"    : 1E-3,
                 "mig"   : 1E-6,
@@ -49,9 +49,9 @@ MODEL_PAR_EVOL = {
                 "K"     : 1E3,
                 "sigmaBirth" : 0.2,
                 #fixed intial condition
-                "NUMGROUP" : 100,  
+                "NUMGROUP" : 40,  
                 "numTypeBins" : 100,
-                "meanGamma0" : 0.5,
+                "meanGamma0" : 0,
                 "stdGamma0" : 0.001,
                 "N0init" : 1.
         }

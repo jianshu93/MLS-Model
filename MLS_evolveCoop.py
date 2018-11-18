@@ -6,17 +6,14 @@ CreateD on WeD OCt 17 12:25:24 2018
 @author: simonvanvliet
 """
 import math
-#import random
 import numpy as np
 import scipy.stats as st
-import scipy.sparse as spar
+#import scipy.sparse as spar
 import matplotlib.pyplot as plt
 import time
 from numba import jit, void, f8, i8 
 from numba.types import UniTuple, Tuple
 
-#import gc
-#import traceback
 
 # calculates time step to use to keep max 1 host event per step
 def calc_timestep(model_par):
@@ -142,7 +139,6 @@ def select_host_to_die(numGroup, randNum):
     id_group = int(np.floor(randNum*numGroup))
     return id_group
 
-# birth composition draw fraction from normal distribution with fixed variance
 @jit(f8[:](f8[::1], f8))
 def host_birth_composition_copy(parComp, n0):
     densPar = parComp.sum()
@@ -232,103 +228,14 @@ def host_death_event(groupMatrix, randNum):
     
     return groupMatNew
         
-def create_update_matrix_sparse(numGroup, r, mu, mig, numBins):#groupMatrix):#, r, mu, mig, numBins):
+def create_local_update_matrix(r, mu, mig, cost, numBins):
     #extract model parameters
     dGamma = 1 / numBins    
     gammaVec = np.linspace(dGamma/2, 1-dGamma/2, numBins)
-    
+    costVec = gammaVec * cost
     #calculate rates
-    birthRate = (1-mu) * (1  - gammaVec) * r 
-    mutationRate = mu / 2  * (1  - gammaVec) * r
-        
-    outMigrationRate = mig
-    inMigrationRate = mig / (numGroup-1)
-
-    birthMigOut = birthRate - outMigrationRate
-
-    # x is vector made of vertical stack of each groups distribution
-    # dx = birthMatrix @ x  -> birth and mutation 
-    #    - migrationInMatrix @ x -> migration out of host
-    #    + migrationOutMatrix @ x -> migration into host
-    #    - (deathMatrix @ x) * x  -> death (eq. to sum(x)*x)
-
-    #create sub matrices of size of single group
-
-    diagonals = [mutationRate[0:-1], birthMigOut, mutationRate[1:]] 
-    locBirthMigOut = spar.diags(diagonals, [-1, 0, 1])           
-    birthMigOutMatrix = spar.kron(spar.eye(numGroup), locBirthMigOut)
-    
-    diagonals = np.full((numBins), inMigrationRate)
-    locMigIn = spar.diags(diagonals, 0) 
-    groupStruc = np.ones((numGroup,numGroup)) - np.eye(numGroup)
-    migInMatrix = spar.kron(groupStruc, locMigIn)
-    
-    birthMigMatrix = birthMigOutMatrix + migInMatrix
-    
-    locDeath = np.ones((numBins, numBins)) * r
-    deathMatrix =  spar.kron(spar.eye(numGroup), locDeath)
-    
-    #create investment vec
-    investVec = np.kron(np.ones((1,numGroup)), gammaVec)
-
-    #stateMatrix
-    stateMat = spar.kron(np.ones((1,numGroup)), spar.eye(numBins))
-
-    return (birthMigMatrix, deathMatrix, investVec, stateMat)
-
-def create_update_matrix(numGroup, r, mu, mig, numBins):#groupMatrix):#, r, mu, mig, numBins):
-    #extract model parameters
-    dGamma = 1 / numBins    
-    gammaVec = np.linspace(dGamma/2, 1-dGamma/2, numBins)
-    
-    #calculate rates
-    birthRate = (1-mu) * (1  - gammaVec) * r
-    mutationRate = mu / 2  * (1  - gammaVec) * r
-      
-    outMigrationRate = mig
-    inMigrationRate = mig / (numGroup-1)
-    
-    birthMigOutRate = birthRate - outMigrationRate
-    
-
-    # x is vector made of vertical stack of each groups distribution
-    # dx = birthMatrix @ x  -> birth and mutation 
-    #    - migrationInMatrix @ x -> migration out of host
-    #    + migrationOutMatrix @ x -> migration into host
-    #    - (deathMatrix @ x) * x  -> death (eq. to sum(x)*x)
-
-    #create sub matrices of size of single group
-    locBirthMigOut = np.diag(birthMigOutRate) + \
-                     np.diag(mutationRate[0:-1], -1) + \
-                     np.diag(mutationRate[1:],  1)           
-               
-    birthMigOutMatrix = np.kron(np.eye(numGroup), locBirthMigOut)
-
-    locMigIn = np.diag(np.full((numBins), inMigrationRate))
-    groupStruc = np.ones((numGroup,numGroup)) - np.eye(numGroup)
-    migInMatrix = np.kron(groupStruc, locMigIn)
-           
-    locDeath = np.ones((numBins, numBins)) * r
-    deathMatrix =  np.kron(np.eye(numGroup), locDeath)
-
-    #combine birth and migaration
-    birthMigMatrix = birthMigOutMatrix + migInMatrix
-    
-    #create investment vec
-    investVec = np.kron(np.ones((1,numGroup)), gammaVec)
-
-    return (birthMigMatrix, deathMatrix, investVec)
-
-
-
-def create_local_update_matrix(r, mu, mig, numBins):
-    #extract model parameters
-    dGamma = 1 / numBins    
-    gammaVec = np.linspace(dGamma/2, 1-dGamma/2, numBins)
-    
-    #calculate rates
-    birthmigRate = (1-mu) * (1  - gammaVec) * r - mig
-    mutationRate = mu / 2  * (1  - gammaVec) * r
+    birthmigRate = (1-mu) * (1  - costVec) * r - mig
+    mutationRate = mu / 2  * (1  - costVec) * r
 
     #create sub matrices of size of single group
     locBirthMigOut = np.diag(birthmigRate) + \
@@ -336,48 +243,6 @@ def create_local_update_matrix(r, mu, mig, numBins):
                np.diag(mutationRate[1:],  1)           
                
     return (locBirthMigOut, gammaVec)
-
-#@profile
-def crop_update_matrix(bmig_mat, death_mat, invest_vec, ngroup, numBins):
-    
-    cropSize = ngroup * numBins
-    
-    birthMigMatrix = bmig_mat[0:cropSize,0:cropSize]
-    deathMatrix = death_mat[0:cropSize,0:cropSize]
-    investVec = invest_vec[:,0:cropSize]
-
-    return (birthMigMatrix, deathMatrix, investVec)
- 
-@jit(Tuple((f8[:,:], i8))(f8[:,:], i8)) 
-def group_mat_to_vec(groupMatrix, numBins):
-    numGroup = groupMatrix.shape[0]
-    #reshape group matrix to vector form
-    groupVec = np.reshape(groupMatrix,(numGroup*numBins,1))
-    return (groupVec, numGroup)
-
-@jit(f8[:,:](f8[:,:], i8, i8)) 
-def group_vec_to_mat(groupVec, numGroup, numBins):   
-    groupMat = np.reshape(groupVec,(numGroup, numBins))
-    return groupMat
-
-#updates communtity composition during timestep dt
-#@profile    
-#@jit(void(f8[:,:], f8[:,:], f8[:,:], f8))
-def update_comm(x, birthMigMatrix, deathMatrix, dt):
-    dx = (birthMigMatrix @ x) - (deathMatrix @ x) * x
-    x += dx * dt
-    return  
-      
-
-@jit(UniTuple(f8,2)(f8[:,:], f8[:,:], i8, \
-    f8, f8,  f8, f8))
-def host_propensity(groupVec, invVec, NumHost, dt, B_H, D_H, TAU_H):   
-    totalInvest = invVec @ groupVec   
-    totBirthProp = dt / TAU_H * (NumHost + B_H * totalInvest) 
-    totDeathProp = dt / TAU_H * D_H * NumHost ** 2
-    
-    return (totBirthProp, totDeathProp)
-
 
 @jit(UniTuple(f8,2)(f8[:,::1], f8[::1], f8, f8,  f8, f8), nopython=True)
 def host_propensityLocal(gMat, gammaVec, dt, B_H, D_H, TAU_H): 
@@ -405,8 +270,6 @@ def init_output_matrix(Num_t_sample, NumBins):
 
     return Output, OutputState
 
-#@jit(void(f8[:,:], f8[:,:], f8, f8, f8))
-#@jit( nopython=True) 
 @jit(void(f8[:,::1], f8[:,::1], f8, f8, f8), nopython=True)   
 def update_comm_loc(gMat, locBMMat, r, mig, dt):
     nGroup = gMat.shape[0]
@@ -432,22 +295,26 @@ def run_model_fixed_parameters(model_par):
    
     #calc timesteps    
     Num_t, Num_t_sample = calc_timestep(model_par)   
+    Num_t += 1
     samplingInterval = model_par['sampleT']
     timeAvWindow = 100
     #maxGroupNum = calc_maxGroupNum(model_par)
 
+
     #host rates
     dt, B_H, D_H, TAU_H = [float(model_par[x]) for x in ('dt','B_H','D_H','TAU_H')]
 
+
+    print(('using dt=%g' %dt))
     #bacterial rates
-    r, mu, mig = [float(model_par[x]) for x in ('r','mu','mig')]
+    r, mu, mig, cost = [float(model_par[x]) for x in ('r','mu','mig', 'cost')]
     numBins = int(model_par['numTypeBins'])
     #init randNum
     rndMat = create_randMat(Num_t)
     
     # init groups
     gMat = init_comm(model_par)
-    locBMMat, gammaVec = create_local_update_matrix(r, mu, mig, numBins)
+    locBMMat, gammaVec = create_local_update_matrix(r, mu, mig, cost, numBins)
     
     #init output
     Output, OutputState = init_output_matrix(Num_t_sample, numBins)
@@ -501,102 +368,7 @@ def run_model_fixed_parameters(model_par):
     
     return (Output, OutputState, gMat)
 
-def run_model_fixed_parameters_test1(model_par):
-   
-    #calc timesteps    
-    Num_t, Num_t_sample = calc_timestep(model_par)   
 
-    #host rates
-    dt, B_H, D_H, TAU_H = [float(model_par[x]) for x in ('dt','B_H','D_H','TAU_H')]
-
-    #bacterial rates
-    r, mu, mig = [float(model_par[x]) for x in ('r','mu','mig')]
-    numBins = int(model_par['numTypeBins'])
-    #init randNum
-    rndMat = create_randMat(Num_t)
-    
-    # init groups
-    gMat = init_comm(model_par)
-    gVec, nGroup = group_mat_to_vec(gMat, numBins)
-    bmigMat, dMat, invVec, stMat = create_update_matrix_sparse(nGroup, r, mu, mig, numBins)
-
-
-    #locBMMat = create_local_update_matrix(r, mu, mig, numBins)
-
-    #run time    
-    for ti in range(Num_t):
-        
-        #update community
-        update_comm(gVec, bmigMat, dMat, dt)
-     
-        #check if there is host event
-        birthProp, deathProp = host_propensity(gVec, invVec, nGroup, dt, \
-                                               B_H, D_H, TAU_H)
-        
-        #process host events
-        if rndMat[ti,0] < birthProp:
-            #convert groups to matrix form
-            gMat = group_vec_to_mat(gVec, nGroup, numBins)
-            #process host birth event
-            gMatNew = host_birth_event(gMat, rndMat[ti,1], model_par)
-            #update matrices for new number of groups 
-            gVec, nGroup = group_mat_to_vec(gMatNew, numBins)
-            bmigMat, dMat, invVec, stMat = create_update_matrix_sparse(nGroup, r, mu, mig, numBins)
-
-        elif rndMat[ti,0] < (birthProp + deathProp):
-            #convert groups to matrix form
-            gMat = group_vec_to_mat(gVec, nGroup, numBins)
-            #process host death event
-            gMatNew = host_death_event(gMat, rndMat[ti,1])
-            #update matrices for new number of groups   
-            gVec, nGroup = group_mat_to_vec(gMatNew, numBins)
-            bmigMat, dMat, invVec, stMat = create_update_matrix_sparse(nGroup, r, mu, mig, numBins)
-
-            
-    gMat = group_vec_to_mat(gVec, nGroup, numBins)
-    
-    return 
-
-def run_model_fixed_parameters_testlocal(model_par):
-   
-    #calc timesteps    
-    Num_t, Num_t_sample = calc_timestep(model_par)   
-
-    #host rates
-    dt, B_H, D_H, TAU_H = [float(model_par[x]) for x in ('dt','B_H','D_H','TAU_H')]
-
-    #bacterial rates
-    r, mu, mig = [float(model_par[x]) for x in ('r','mu','mig')]
-    numBins = int(model_par['numTypeBins'])
-    #init randNum
-    rndMat = create_randMat(Num_t)
-    
-    # init groups
-    gMat = init_comm(model_par)
-
-    locBMMat, gammaVec = create_local_update_matrix(r, mu, mig, numBins)
-
-    #run time    
-    for ti in range(Num_t):
-        
-        #update community
-        update_comm_loc(gMat, locBMMat, r, mig, dt)
-     
-        #check if there is host event
-        birthProp, deathProp = host_propensityLocal(gMat, gammaVec, dt, \
-                                               B_H, D_H, TAU_H)
-        
-        #process host events
-        if rndMat[ti,0] < birthProp:
-            #process host birth event
-            gMat = host_birth_event(gMat, rndMat[ti,1], model_par)
-        elif rndMat[ti,0] < (birthProp + deathProp):
-            #process host death event
-            gMat = host_death_event(gMat, rndMat[ti,1])
-            
-            
-    
-    return 
 
 def plot_data(dataStruc, FieldName):
     plt.plot(dataStruc['time'], dataStruc[FieldName], label=FieldName)
@@ -683,7 +455,7 @@ def single_run_with_plot(MODEL_PAR):
     
     axs= plt.subplot(nR,2,4)  
     
-    currData = np.log10(OutputState)
+    currData = np.log10(OutputState.transpose())
     axs.imshow(currData, cmap="cool", \
                     interpolation='nearest', \
                     extent=[0,1,0,1], \
@@ -693,14 +465,14 @@ def single_run_with_plot(MODEL_PAR):
     axs.set_yticks([0, 1])
     #axs.set_title(titlename)
     
-    axs.set_xlabel('investment')
-    axs.set_ylabel('time')
+    axs.set_ylabel('investment')
+    axs.set_xlabel('time')
     
-    axs.set_xticklabels([0, 1])
+    axs.set_yticklabels([0, 1])
     
     maxTData =Output['time'].max()
     try:
-        axs.set_yticklabels([0, round(maxTData)])
+        axs.set_xticklabels([0, int(round(maxTData))])
     except:
         print('oh no')
     

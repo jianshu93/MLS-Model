@@ -49,6 +49,7 @@ def init_comm(model_par):
     stdGamma = model_par['stdGamma0']
     numGroup = int(model_par['NUMGROUP'])
     N0 = model_par['N0init']
+    hostInv0 = model_par['hostInv0']
 
     dGamma = 1 / numGammaBin    
     gammaVec = np.linspace(dGamma/2, 1-dGamma/2, numGammaBin)
@@ -59,8 +60,10 @@ def init_comm(model_par):
     
     groupMatrix = np.broadcast_to(initDistri,(numGroup,numGammaBin))
     groupMatrix = np.copy(groupMatrix, order='C')
+
+    hostInvVec = np.ones(numGroup) * hostInv0
     
-    return groupMatrix
+    return (groupMatrix, hostInvVec)
 
 
 def create_randMat(Num_t):
@@ -107,7 +110,8 @@ def calc_rms_error(mav_t, curr_idx, windowLength):
    
     return rms
 
-def sample_model(gMat, gammaVec, output, OutputState, sample_idx, currT, movingAvWind):  
+def sample_model(gMat, hostInvVec, gammaVec, \
+                output, OutputState, sample_idx, currT, movingAvWind):  
     
     nGroup = gMat.shape[0]
     
@@ -126,6 +130,9 @@ def sample_model(gMat, gammaVec, output, OutputState, sample_idx, currT, movingA
         rms_err = calc_rms_error(output['F_mav'], \
                                          sample_idx, movingAvWind)
         output['rms_err'][sample_idx] = rms_err
+
+    avHostInv = hostInvVec.mean()
+    output['HInv_T_av'][sample_idx] = avHostInv
 
     output['time'][sample_idx] = currT
 
@@ -169,6 +176,14 @@ def host_birth_composition_sample(parComp, n0, K):
       
     return offComp
 
+def host_traittrans_linnorm(parrent_trait,std_mutation):
+    minT = (0 - parrent_trait) / std_mutation
+    maxT = (10 - parrent_trait) / std_mutation
+    newT = st.truncnorm.rvs(minT, maxT) 
+    offspring_trait = newT * std_mutation + parrent_trait
+    
+    return offspring_trait
+
 
 @jit(i8(f8[:,::1], f8, f8, f8, f8, i8), nopython=True)
 def select_host_to_reproduce(groupMat, randNum, B_H, TAU_H, dt, numBins):
@@ -191,7 +206,7 @@ def select_host_to_reproduce(groupMat, randNum, B_H, TAU_H, dt, numBins):
     
     return id_group    
 
-def host_birth_event(groupMat, randNum, model_par):
+def host_birth_event(groupMat, hostInvVec, randNum, model_par):
     #extract parameters
     B_H = model_par["B_H"]
     TAU_H = model_par["TAU_H"]
@@ -199,7 +214,8 @@ def host_birth_event(groupMat, randNum, model_par):
     n0 = model_par['n0']
     K = model_par['K']
     numBins = model_par['numTypeBins']
-    
+    sigma_inv = model_par['sigmaHostInv']
+
     #select host to reproduce
     id_group = select_host_to_reproduce(groupMat, randNum, B_H, TAU_H, dt, numBins)
     
@@ -214,19 +230,29 @@ def host_birth_event(groupMat, randNum, model_par):
 
     #add new group to group matrix 
     groupMatNew = np.append(groupMat, np.atleast_2d(offComp), axis=0)
-    
-    return groupMatNew
+
+    #calulate new host trait
+    parHostInvestment = hostInvVec[id_group]
+
+    if sigma_inv>0:
+        offHostInvestment = host_traittrans_linnorm(parHostInvestment,sigma_inv)
+    else:
+        offHostInvestment = parHostInvestment
+    hostInvVecNew = np.append(hostInvVec, offHostInvestment)
+
+    return (groupMatNew, hostInvVecNew)
         
 
-def host_death_event(groupMatrix, randNum): 
+def host_death_event(groupMatrix, hostInvVec, randNum): 
     #select host to die
     numGroup = groupMatrix.shape[0]
     id_group = select_host_to_die(numGroup, randNum)
 
     #delete group
     groupMatNew = np.delete(groupMatrix, id_group, axis=0)
+    hostInvVecNew = np.delete(hostInvVec, id_group)
     
-    return groupMatNew
+    return (groupMatNew, hostInvVecNew)
         
 def create_local_update_matrix(r, mu, mig, cost, numBins):
     #extract model parameters
@@ -234,20 +260,21 @@ def create_local_update_matrix(r, mu, mig, cost, numBins):
     gammaVec = np.linspace(dGamma/2, 1-dGamma/2, numBins)
     costVec = gammaVec * cost
     #calculate rates
-    birthmigRate = (1-mu) * (1  - costVec) * r - mig
-    mutationRate = mu / 2  * (1  - costVec) * r
+    noMutationRate = (1-mu)
+    mutationRate = mu / 2
 
     #create sub matrices of size of single group
-    locBirthMigOut = np.diag(birthmigRate) + \
-               np.diag(mutationRate[0:-1], -1) + \
-               np.diag(mutationRate[1:],  1)           
+    mutationMat = np.diag(np.full(numBins,noMutationRate)) + \
+               np.diag(np.full(numBins-1,mutationRate), -1) + \
+               np.diag(np.full(numBins-1,mutationRate),  1)   
+
+    basalBirthrate = r * (1 - costVec)
                
-    return (locBirthMigOut, gammaVec)
+    return (mutationMat, basalBirthrate, gammaVec)
 
 @jit(UniTuple(f8,2)(f8[:,::1], f8[::1], f8, f8,  f8, f8), nopython=True)
-def host_propensityLocal(gMat, gammaVec, dt, B_H, D_H, TAU_H): 
+def host_propensityLocal(gMat, invPerGroup, dt, B_H, D_H, TAU_H): 
     NumHost = gMat.shape[0]
-    invPerGroup = gMat @ gammaVec   
     totalInvest = invPerGroup.sum()
     totBirthProp = dt / TAU_H * (NumHost + B_H * totalInvest) 
     totDeathProp = dt / TAU_H * D_H * NumHost ** 2
@@ -259,6 +286,7 @@ def init_output_matrix(Num_t_sample, NumBins):
     dType = np.dtype([('F_T_av', 'f8'), \
                       ('N_T_av', 'f8'), \
                       ('H_T', 'f8'), \
+                      ('HInv_T_av', 'f8'), \
                       ('F_mav', 'f8'), \
                       ('rms_err', 'f8'), \
                       ('time', 'f8')])
@@ -270,25 +298,37 @@ def init_output_matrix(Num_t_sample, NumBins):
 
     return Output, OutputState
 
-@jit(void(f8[:,::1], f8[:,::1], f8, f8, f8), nopython=True)   
-def update_comm_loc(gMat, locBMMat, r, mig, dt):
+@jit(void(f8[:,::1], f8[:,::1], f8[::1], f8[::1], f8, f8, f8), nopython=True) 
+def update_comm_loc(gMat, mutMat, basalBirthrate, hostBirthEffect, r, mig, dt):
     nGroup = gMat.shape[0]
-    
+ 
     densPerGroup = gMat.sum(axis=1)
     globTypeFrac = gMat.sum(axis=0)
     
     migIn = globTypeFrac * mig / (nGroup - 1)
     deathRatePerGroup = r * densPerGroup
-    
+
     dx = np.empty_like(gMat)
     for i in range(nGroup):
         currGroup = gMat[i,:]
-        currBMout = locBMMat @ currGroup 
+        birthRates = (hostBirthEffect[i] + basalBirthrate) * currGroup
+        birthMut = mutMat @ birthRates
+        migOut = mig * currGroup
         currDeath = currGroup * deathRatePerGroup[i]
-        dx[i,:] =  currBMout - currDeath + migIn
+        dx[i,:] =  birthMut - currDeath + migIn - migOut
     
     gMat += dx * dt
     return  
+
+@jit(UniTuple(f8[:],2)(f8[:,::1], f8[::1], f8[::1]))
+def calc_community_perform(gMat, gammaVec, hostInvVec):
+    #calc community investment
+    invPerComm = gMat @ gammaVec 
+    invPerHost = invPerComm * hostInvVec
+    hostBirthEffect = invPerHost
+
+    return (invPerComm, hostBirthEffect)
+
 
 
 def run_model_fixed_parameters(model_par):
@@ -313,35 +353,37 @@ def run_model_fixed_parameters(model_par):
     rndMat = create_randMat(Num_t)
     
     # init groups
-    gMat = init_comm(model_par)
-    locBMMat, gammaVec = create_local_update_matrix(r, mu, mig, cost, numBins)
-    
+    gMat, hostInvVec = init_comm(model_par)
+    mutMat, birthVec, gammaVec = create_local_update_matrix(r, mu, mig, cost, numBins)
+
     #init output
     Output, OutputState = init_output_matrix(Num_t_sample, numBins)
 
     #init sample
     currT = 0
     sampleIndex = 0
-    sampleIndex = sample_model(gMat, gammaVec, Output, OutputState, \
+    sampleIndex = sample_model(gMat, hostInvVec, gammaVec, Output, OutputState, \
                         sampleIndex, currT, timeAvWindow)
     
     #run time    
     for ti in range(Num_t):
         
+        invPerComm, hostBEffect = calc_community_perform(gMat, gammaVec, hostInvVec)
+
         #update community
-        update_comm_loc(gMat, locBMMat, r, mig, dt)
+        update_comm_loc(gMat, mutMat, birthVec, hostBEffect, r, mig, dt)
      
         #check if there is host event
-        birthProp, deathProp = host_propensityLocal(gMat, gammaVec, dt, \
+        birthProp, deathProp = host_propensityLocal(gMat, invPerComm, dt, \
                                                B_H, D_H, TAU_H)
         
         #process host events
         if rndMat[ti,0] < birthProp:
             #process host birth event
-            gMat = host_birth_event(gMat, rndMat[ti,1], model_par)
+            gMat, hostInvVec = host_birth_event(gMat, hostInvVec, rndMat[ti,1], model_par)
         elif rndMat[ti,0] < (birthProp + deathProp):
             #process host death event
-            gMat = host_death_event(gMat, rndMat[ti,1])
+            gMat, hostInvVec = host_death_event(gMat, hostInvVec, rndMat[ti,1])
             
         #stop run if all hosts die
         if  gMat.shape[0]==0:
@@ -353,7 +395,7 @@ def run_model_fixed_parameters(model_par):
         #sample model at intervals
         nextSampleT = samplingInterval * sampleIndex
         if currT >= nextSampleT:
-            sampleIndex = sample_model(gMat, gammaVec, Output, OutputState, \
+            sampleIndex = sample_model(gMat, hostInvVec, gammaVec, Output, OutputState, \
                         sampleIndex, currT, timeAvWindow)
             
 #            #check if steady state has been reached
@@ -445,6 +487,7 @@ def single_run_with_plot(MODEL_PAR):
     
     plt.subplot(nR,nC,3)  
     plot_data(Output,"F_T_av")  
+    plot_data(Output, "HInv_T_av")
     #plot_data(Output,"F_mav")  
     plt.ylabel("investment") 
     #plt.legend()
@@ -488,5 +531,5 @@ def single_run_with_plot(MODEL_PAR):
 #    
     #fig.set_figwidth(10, forward=True)
     plt.tight_layout()
-
-    return (Output, OutputState)
+    
+    return Output, OutputState

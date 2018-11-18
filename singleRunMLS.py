@@ -7,7 +7,8 @@ Created on Fri Nov  9 14:56:43 2018
 """
 #%% single run of model
 #import MLS_static as mlss
-import MLS_evolveCoop as mlse
+#import MLS_evolveCoop as mlse
+import MLS_coevolveCoop as mlsco
 
 MODEL_PAR = {
                 #fixed model parameters
@@ -35,31 +36,36 @@ MODEL_PAR = {
 MODEL_PAR_EVOL = {
                 #fixed model parameters
                 "sampling" : "sample",
-                "maxT"  : 50000., 
-                "sampleT": 100.,
-                "mu"    : 0.01,
+                "maxT"  : 15000., 
+                "sampleT": 100,
+                "mu"    : 0.05,
                 "B_H"   : 3.,
-                "D_H"   : 1./40.,
+                "D_H"   : 1./20.,
                 #variable model parameters
-                "cost" : 0.1,
+                "cost" : 0.2,
                 "TAU_H" : 100.,
                 "n0"    : 1E-3,
-                "mig"   : 1E-6,
+                "mig"   : 1E-4,
                 "r"     : 1.,
                 "K"     : 1E3,
                 "sigmaBirth" : 0.2,
+                "sigmaHostInv" : 0.0,
                 #fixed intial condition
                 "NUMGROUP" : 40,  
                 "numTypeBins" : 100,
-                "meanGamma0" : 0,
-                "stdGamma0" : 0.001,
-                "N0init" : 1.
+                "meanGamma0" : 0.5,
+                "stdGamma0" : 0.01,
+                "N0init" : 1.,
+                "hostInv0" : 0.
         }
+
 
 
 
 #mlse.run_model_fixed_parameters_testlocal(MODEL_PAR_EVOL)
 
-Output = mlse.single_run_with_plot(MODEL_PAR_EVOL)
+#Output, Outputstate = mlse.single_run_with_plot(MODEL_PAR_EVOL)
+
+Output = mlsco.single_run_with_plot(MODEL_PAR_EVOL)
 
 #Output = mlss.single_run_with_plot(MODEL_PAR)

@@ -11,28 +11,63 @@ import matplotlib.pyplot as plt
 from numpy.lib.recfunctions import append_fields
 from matplotlib import cm
 from mpl_toolkits.mplot3d import axes3d    
+import datetime
+from pathlib import Path
+from matplotlib import mpl
 
 
-fileName = "parScan181030.npz"
+now = datetime.datetime.now()
+
+saveNameMod = "FixedVariance"
+
+data_folder = Path("Data/")
+#fileName = "20181120_16h32_fixedcv"
+fileName = "20181115_20h15_fixedvar"
+
+fileName = "parScan_" + fileName + ".npz"
+fileName = data_folder / fileName
+
+save_folder = Path("Figures/")
+saveName = "heatmap"+now.strftime("_%Y-%m-%d_")+saveNameMod + ".pdf"
+saveName = save_folder / saveName
+
+
 
 file = np.load(fileName)
 
-metaData = file['metaData'][0]
-data = file['data']
+modelParList = file['modelParList']
+parRange = file['parRange']
+parOrder = file['parOrder']
 
-#metaData["defIdx"] = np.array([1, 1, 2, 3, 1])
+data1d = file['data']
 
-numTau = metaData['TAU_H'].size
-numGamma = metaData['gamma'].size
+#parRange = [gamma_vec, tauH_vec, n0_vec, mig_vec, rr_vec, K_vec] 
 
-n0V = np.log10(metaData['n0'])
-migV = np.log10(metaData['mig'])
+ndSize = [ x.size for x in parRange]
+data = np.reshape(data1d, ndSize)
+
+#parOrder = np.array(['gamma','tauH','n0','mig','r','K'])
+
+gammaIndex = np.asscalar(np.nonzero(parOrder=="gamma")[0])
+tauIndex = np.asscalar(np.nonzero(parOrder=="tauH")[0])
+n0Index = np.asscalar(np.nonzero(parOrder=="n0")[0])
+migIndex = np.asscalar(np.nonzero(parOrder=="mig")[0])
+rIndex = np.asscalar(np.nonzero(parOrder=="r")[0])
+KIndex = np.asscalar(np.nonzero(parOrder=="K")[0])
+sigmaIndex = np.asscalar(np.nonzero(parOrder=="sigma")[0])
 
 
-datar1 = data[:,:,:,:,:,0]
-data1d = np.reshape(datar1,datar1.size)
+numGamma = ndSize[gammaIndex]
+numTau = ndSize[tauIndex]
+numR = ndSize[rIndex]
+numK = ndSize[KIndex]
+numSig = ndSize[sigmaIndex]
+
+n0V = parRange[n0Index]
+migV = parRange[migIndex]
 
 
+#%%
 def calc_tauH(n0, theta, gamma, r):
     K = 1-gamma
     alpha = r*(1-gamma) - theta
@@ -51,6 +86,7 @@ def calc_tauH(n0, theta, gamma, r):
     
     return tauH
 
+#%%
 tauVar = 1. / (data1d['gamma']*data1d['r'])
 tauHer = calc_tauH(data1d['n0'], data1d['mig'], data1d['gamma'], data1d['r']) 
 
@@ -60,13 +96,15 @@ minTau = np.minimum(tauVar, tauHer)
 relTau = data1d['tau_H'] / minTau
 
 #data1d["tauV"] = 1 / data1d['gamma']
-data1d = append_fields(data1d, 'tauVar', tauVar, 'f8', usemask=False)
-data1d = append_fields(data1d, 'tauHer', tauHer, 'f8', usemask=False)
-data1d = append_fields(data1d, 'minTau', minTau, 'f8', usemask=False)
-data1d = append_fields(data1d, 'relTau', relTau, 'f8', usemask=False)
+data1d = append_fields(data1d, 'tauVar', np.squeeze(tauVar), 'f8', usemask=False)
+data1d = append_fields(data1d, 'tauHer', np.squeeze(tauHer), 'f8', usemask=False)
+data1d = append_fields(data1d, 'minTau', np.squeeze(minTau), 'f8', usemask=False)
+data1d = append_fields(data1d, 'relTau', np.squeeze(relTau), 'f8', usemask=False)
 
 
-np.save('1dData.npy',data1d)
+#%%
+
+
 
 #gammaCat = np.ones(data1d.size)
 #index = np.arange(numGamma)
@@ -217,11 +255,21 @@ plt.savefig('seperateFrac.png', dpi=150)
 #
 #ax.scatter(tauVarRel, tauHerRel, data1d['relTau'], c=[0.2, 0.2, 0.2], s=16, alpha=0.4)
 
-fig3 = plt.figure()
+#%%
 
-w = 2400 / 150
-h = 1800 /150
-fig3.set_size_inches(w,h)
+font = {'family' : 'Arial',
+            'weight' : 'light',
+            'size'   : 28}
+    
+mpl.rc('font', **font)
+
+fig,axs = plt.figure()
+mydpi=150
+w = 1800
+h = 1800
+fig3.set_size_inches(w/mydpi,h/mydpi)
+
+
 
 ax = fig3.add_subplot(111, projection='3d')
 
@@ -237,7 +285,7 @@ yData = np.log10(tauHerRel)
 xRange = (np.floor(xData.min()), np.ceil(xData.max()))
 yRange = (np.floor(yData.min()), np.ceil(yData.max()))
 
-ax.scatter(xData , yData , data1d['F_mav'], c=data1d['F_mav'], s=60, alpha=0.6, vmin=0, vmax=0.6)
+ax.scatter(xData , yData , data1d['F_mav'], c=data1d['sigma'], s=60, alpha=0.6, vmin=0, vmax=2)
 plt.xlim(xRange)
 plt.ylim(yRange)
 #plt.zlim((0, 0.6))
@@ -253,6 +301,8 @@ plt.draw()
 plt.savefig('3dFig.png', dpi=150)
 
 
+
+#%%
 fig4 = plt.figure()
 w = 2400 / 150
 h = 1400 /150

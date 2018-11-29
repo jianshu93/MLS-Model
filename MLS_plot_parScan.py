@@ -17,7 +17,9 @@ now = datetime.datetime.now()
 saveNameMod = "FixedVariance"
 
 data_folder = Path("Data/")
-fileName = "20181115_20h15_fixedvar"
+#fileName = "20181120_16h32_fixedcv"
+fileName = "20181121_08h38_fixedvar"
+
 fileName = "parScan_" + fileName + ".npz"
 fileName = data_folder / fileName
 

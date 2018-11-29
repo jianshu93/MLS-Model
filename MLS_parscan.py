@@ -17,13 +17,16 @@ from pathlib import Path
 
 #%%
 
-gamma_vec = np.array([0.01, 0.05, 0.1])
-tauH_vec = np.logspace(1, 4, 4)
-n0_vec = np.logspace(-12, -2, 11)
-mig_vec = np.logspace(-12, -2, 11) 
+gamma_vec = np.array([0.01, 0.03, 0.05, 0.075, 0.1])
+tauH_vec = np.logspace(1, 3, 5)
+n0_vec = np.logspace(-9, -3, 7)
+mig_vec = np.logspace(-9, -3, 7) 
 rr_vec = np.array([1.])
 K_vec = np.array([1.]) #, 1.E3, 1.E6, 1.E9, 1.E12])
-sigma_vec = np.array([0.3, 0.25, 0.2, 0.15, 0.1, 0.05, 0.01, 0.005])
+sigma_vec = np.array([0.3, 0.2, 0.1, 0.01])
+
+#sigma_vec = np.array([20, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05])
+
 
 parOrder = np.array(['gamma','tauH','n0','mig','r','K', 'sigma'])
 parRange = [gamma_vec, tauH_vec, n0_vec, mig_vec, rr_vec, K_vec, sigma_vec] 
@@ -36,7 +39,7 @@ def createModelPar(input):
                 "sampleT": 1.,
                 "mu"    : 1.E-5,
                 "B_H"   : 3.,
-                "D_H"   : 1./40.,
+                "D_H"   : 1./30.,
                 #scanned model parameters
                 "gamma" : input[0],
                 "TAU_H" : input[1],
@@ -46,7 +49,7 @@ def createModelPar(input):
                 "K"     : input[5],
                 "sigmaBirth" : input[6],
                 #fixed intial condition
-                "NUMGROUP" : 100.,  
+                "NUMGROUP" : 75.,  
                 "F0" : 0.5,
                 "N0init" : 1., 
                 }

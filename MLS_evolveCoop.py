@@ -382,7 +382,7 @@ def plot_data(dataStruc, FieldName):
   
 def single_run_finalstate(MODEL_PAR):
     
-    Output, gMat = run_model_fixed_parameters(MODEL_PAR)
+    Output, OutputState, gMat = run_model_fixed_parameters(MODEL_PAR)
             
     dType = np.dtype([ \
               ('F_T_av', 'f8'), \

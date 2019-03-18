@@ -455,17 +455,6 @@ def run_model_fixed_parameters(model_par):
     return Output
 
 
-
-
-def plot_data(dataStruc, FieldName):
-    plt.plot(dataStruc['time'], dataStruc[FieldName], label=FieldName)
-    plt.xlabel("time")
-    maxTData =dataStruc['time'].max()
-    try:
-        plt.xlim((0,maxTData))
-    except:
-        print(maxTData)
-    return
   
 def single_run_finalstate(MODEL_PAR):
     
@@ -531,7 +520,15 @@ def single_run_noplot(MODEL_PAR):
 
     return Output
 
-
+def plot_data(dataStruc, FieldName):
+    plt.plot(dataStruc['time'], dataStruc[FieldName], label=FieldName)
+    plt.xlabel("time")
+    maxTData =dataStruc['time'].max()
+    try:
+        plt.xlim((0,maxTData))
+    except:
+        print(maxTData)
+    return
 
 def single_run_with_plot(MODEL_PAR):
     

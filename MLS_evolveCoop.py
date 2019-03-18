@@ -167,6 +167,8 @@ def host_birth_composition_sample(parComp, n0, K):
     for idx in sample:
         offComp[idx] += 1
       
+    offComp *= n0 / N0    
+      
     return offComp
 
 

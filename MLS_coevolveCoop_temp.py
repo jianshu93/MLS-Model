@@ -8,11 +8,10 @@ CreateD on WeD OCt 17 12:25:24 2018
 import math
 import numpy as np
 import scipy.stats as st
-#import scipy.sparse as spar
 import matplotlib.pyplot as plt
 import time
 from numba import jit, void, f8, i8, from_dtype
-from numba.types import UniTuple, Tuple
+from numba.types import UniTuple
 
 
 # calculates time step to use to keep max 1 host event per step
@@ -50,7 +49,6 @@ def init_comm(model_par):
     stdGamma = model_par['stdGamma0']
     numGroup = int(model_par['NUMGROUP'])
     N0 = model_par['N0init']
-    hostInv0 = model_par['hostInv0']
 
     dGamma = 1 / numGammaBin    
     gammaVec = np.linspace(dGamma/2, 1-dGamma/2, numGammaBin)
@@ -120,8 +118,21 @@ def calc_rms_error(mav_t, curr_idx, windowLength):
    
     return rms
 
+@jit(f8[::1](f8[:,::1], f8[::1]))    
+def calc_perhost_inv_distri(gMat,gammaVec):
+    nGroup = gMat.shape[0]
+    binEdges = np.append(gammaVec-gammaVec[0],gammaVec[-1]+gammaVec[0])
+    densPerHost = gMat.sum(axis=1)
+    probDens = gMat / densPerHost[:,None]
+    avInvPerHost = probDens @ gammaVec 
+    avHostDens, bin_edges = np.histogram(avInvPerHost, bins=binEdges)
+    avHostDens = avHostDens / nGroup
+    
+    return avHostDens
+
 def sample_model(gMat, hostTrait, gammaVec, \
-                output, OutputState, sample_idx, currT, movingAvWind):  
+                output, OutputState, OutputStatePerH, \
+                sample_idx, currT, movingAvWind):  
     
     nGroup = gMat.shape[0]
     
@@ -149,6 +160,10 @@ def sample_model(gMat, hostTrait, gammaVec, \
     output['time'][sample_idx] = currT
 
     OutputState[sample_idx,:] = gMat.mean(axis=0)
+    
+    avHostDens = calc_perhost_inv_distri(gMat,gammaVec)
+    
+    OutputStatePerH[sample_idx,:] = avHostDens
 
     sample_idx += 1
     
@@ -158,6 +173,23 @@ def select_host_to_die(numGroup, randNum):
     id_group = int(np.floor(randNum*numGroup))
     return id_group
 
+def trunc_norm(exp, std, min=-np.inf, max=np.inf, type='lin'):
+    if type == 'log':
+        exp = math.log10(exp)
+        min = math.log10(min)
+        max = math.log10(max)
+    elif type != 'lin':
+        raise Exception('problem with trunc_norm only support lin or log mode')
+
+    minT = (min - exp) / std
+    maxT = (max - exp) / std
+    newT = st.truncnorm.rvs(minT, maxT) * std + exp
+
+    if type == 'log':
+        newT = 10 ** newT
+
+    return newT
+
 @jit(f8[:](f8[::1], f8))
 def host_birth_composition_copy(parComp, n0):
     densPar = parComp.sum()
@@ -166,6 +198,36 @@ def host_birth_composition_copy(parComp, n0):
     dilution = n0 / densPar
     offComp = parComp * dilution
 
+    return offComp
+
+#@jit(f8[:](f8[::1], f8[::1], f8, f8))
+def host_birth_composition_contsample(parComp, gammaVec, n0, K):
+    Num0 = max(int(np.ceil(n0*K)),2)
+    
+    probDens = parComp / parComp.sum()
+    
+    sampMeanExp = probDens.dot(gammaVec)
+    centralDev = (gammaVec - sampMeanExp)**2
+    
+    sampMeanVar = probDens.dot(centralDev)
+    sampMeanStd = math.sqrt(sampMeanVar / Num0)
+
+    sampMean = trunc_norm(sampMeanExp, sampMeanStd, min=0, max=1, type='lin')
+    
+    isDone = False
+    
+    offComp = parComp
+    
+    while not isDone:
+        sampStd = math.sqrt((st.chi2.rvs(1) * sampMeanVar) / (Num0-1))
+        zVec = (gammaVec - sampMean) / sampStd    
+        offComp = st.norm.pdf(zVec)
+        
+        if not offComp.sum()==0:
+            offComp *= (n0 / offComp.sum())
+            if not np.any(np.isnan(offComp)):
+                isDone = True
+            
     return offComp
 
 @jit(f8[:](f8[::1], f8, f8))
@@ -190,22 +252,7 @@ def host_birth_composition_sample(parComp, n0, K):
         
     return offComp
 
-def trunc_norm(exp, std, min=-np.inf, max=np.inf, type='lin'):
-    if type == 'log':
-        exp = math.log10(exp)
-        min = math.log10(min)
-        max = math.log10(max)
-    elif type != 'lin':
-        raise Exception('problem with trunc_norm only support lin or log mode')
 
-    minT = (min - exp) / std
-    maxT = (max - exp) / std
-    newT = st.truncnorm.rvs(minT, maxT) * std + exp
-
-    if type == 'log':
-        newT = 10 ** newT
-
-    return newT
 
 @jit(i8(f8[:,::1], f8, f8, f8, f8, i8), nopython=True)
 def select_host_to_reproduce(groupMat, randNum, B_H, TAU_H, dt, numBins):
@@ -278,7 +325,6 @@ def host_birth_event(groupMat, host_trait, randNum, model_par):
     dt = model_par["dt"]
     K = model_par['K']
     numBins = model_par['numTypeBins']
-    sigma_inv = model_par['sigmaHostInv']
 
     #select host to reproduce
     id_group = select_host_to_reproduce(groupMat, randNum, B_H, TAU_H, dt, numBins)
@@ -295,6 +341,12 @@ def host_birth_event(groupMat, host_trait, randNum, model_par):
         offComp = host_birth_composition_copy(parComp, n0)
     elif model_par['sampling']=="sample":
         offComp = host_birth_composition_sample(parComp, n0, K)
+    elif model_par['sampling']=="contsample":
+        numGammaBin = model_par['numTypeBins']
+        dGamma = 1 / numGammaBin    
+        gammaVec = np.linspace(dGamma/2, 1-dGamma/2, numGammaBin)
+        offComp = host_birth_composition_contsample(parComp, gammaVec, n0, K)
+
     else:
        raise Exception('Unknown sampling procedure')     
 
@@ -304,9 +356,10 @@ def host_birth_event(groupMat, host_trait, randNum, model_par):
     if model_par['HostEvolves']:
         #new host traits
         newTraits = host_birth_trait(host_trait[id_group], model_par)
-        host_traitNew = np.append(host_trait, newTraits)
     else:
-        host_traitNew = host_trait[id_group]
+        newTraits = host_trait[id_group]
+    
+    host_traitNew = np.append(host_trait, newTraits)
 
     return (groupMatNew, host_traitNew)
         
@@ -366,8 +419,9 @@ def init_output_matrix(Num_t_sample, NumBins):
     Output['time'][0] = 0
 
     OutputState = np.full((Num_t_sample,NumBins), np.nan)
+    OutputStatePerH = np.full((Num_t_sample,NumBins), np.nan)
 
-    return Output, OutputState
+    return Output, OutputState, OutputStatePerH
 
 
 dtype = np.dtype([('mig', 'f8'), ('r', 'f8'),\
@@ -436,13 +490,13 @@ def run_model_fixed_parameters(model_par):
     mutMat, birthVec, gammaVec = create_local_update_matrix(r, mu, mig, cost, numBins)
 
     #init output
-    Output, OutputState = init_output_matrix(Num_t_sample, numBins)
+    Output, OutputState, OutputStatePerH = init_output_matrix(Num_t_sample, numBins)
 
     #init sample
     currT = 0
     sampleIndex = 0
     sampleIndex = sample_model(gMat, HVec, gammaVec, Output, OutputState, \
-                        sampleIndex, currT, timeAvWindow)
+                        OutputStatePerH, sampleIndex, currT, timeAvWindow)
     
     #run time    
     for ti in range(Num_t):
@@ -475,7 +529,7 @@ def run_model_fixed_parameters(model_par):
         nextSampleT = samplingInterval * sampleIndex
         if currT >= nextSampleT:
             sampleIndex = sample_model(gMat, HVec, gammaVec, Output, OutputState, \
-                        sampleIndex, currT, timeAvWindow)
+                        OutputStatePerH, sampleIndex, currT, timeAvWindow)
             
 #            #check if steady state has been reached
 #            if Output['rms_err'][sampleIndex] < 5E-3:
@@ -485,13 +539,14 @@ def run_model_fixed_parameters(model_par):
             
     Output = Output[0:sampleIndex]
     OutputState = OutputState[0:sampleIndex,:]
-    
-    return (Output, OutputState, gMat)
+    OutputStatePerH = OutputStatePerH[0:sampleIndex,:]
+
+    return (Output, OutputState, OutputStatePerH)
 
   
 def single_run_finalstate(MODEL_PAR):
     
-    Output, OutputState, gMat = run_model_fixed_parameters(MODEL_PAR)
+    Output, OutputState, OutputStatePerH = run_model_fixed_parameters(MODEL_PAR)
             
     dType = np.dtype([ \
               ('F_T_av', 'f8'), \
@@ -561,7 +616,7 @@ def single_run_with_plot(MODEL_PAR):
     
     #run code  
     start = time.time()
-    Output, OutputState, gMat = run_model_fixed_parameters(MODEL_PAR)
+    Output, OutputState, OutputStatePerH = run_model_fixed_parameters(MODEL_PAR)
     end = time.time()
     print("Elapsed time run 1 = %s" % (end - start))
     
@@ -569,21 +624,46 @@ def single_run_with_plot(MODEL_PAR):
     
     fig = plt.figure()
     #plot data  
-    nR=2
-    nC=4
+    nR=3
+    nC=3
     plt.subplot(nR,nC,1)  
     plot_data(Output,"N_T_av")  
     plt.ylabel("N(t)") 
     
-    plt.subplot(nR,nC,3)  
-    plot_data(Output,"F_T_av")  
-    #plot_data(Output,"F_mav")  
-    plt.ylabel("investment") 
-    #plt.legend()
-    
+#    plt.subplot(nR,nC,3)  
+#    plot_data(Output,"F_T_av")  
+#    #plot_data(Output,"F_mav")  
+#    plt.ylabel("investment") 
+#    #plt.legend()
+#    
     plt.subplot(nR,nC,2)  
     plot_data(Output,"H_T")  
     plt.ylabel("H(t)") 
+
+
+    axs= plt.subplot(nR,nC,3)  
+    
+    currData = np.log10(OutputStatePerH.transpose() + np.finfo(float).eps )
+    im = axs.imshow(currData, cmap="viridis", \
+                    interpolation='nearest', \
+                    extent=[0,1,0,1], \
+                    origin='lower', \
+                    vmin=-2, vmax=-1,\
+                    aspect= 'auto')
+    axs.set_xticks([0, 1])
+    axs.set_yticks([0, 1])
+    #axs.set_title(titlename)
+    
+    axs.set_ylabel('investment per host')
+    axs.set_xlabel('time')
+    
+    cb = fig.colorbar(im, ax=axs, orientation='vertical', fraction=.1, label="log10 density")
+    cb.set_ticks([-2, -1])
+    
+    axs.set_yticklabels([0, 1])
+    
+    maxTData = np.nanmax(Output['time'])
+    axs.set_xticklabels([0, int(round(maxTData))])
 
     
     axs= plt.subplot(nR,nC,4)  
@@ -637,3 +717,42 @@ def single_run_with_plot(MODEL_PAR):
     plt.tight_layout()
     
     return Output, OutputState
+
+#if run as script this is executed, if imported this is not executed
+if __name__ == '__main__':
+    print('run as main')
+    model_par = {
+                #fixed model parameters
+                "sampling" : "contsample",
+                "maxT"  : 5000., 
+                "sampleT": 100,
+                "mu"    : 0.05,
+                "B_H"   : 3.,
+                "D_H"   : 1./30.,
+                #variable model parameters
+                "cost" : 0.1,
+                "TAU_H" : 100.,
+                "n0"    : 1E-3,
+                "mig"   : 1E-10,
+                "r"     : 1.,
+                "K"     : 2E3,
+                "hostInv0" : 0.,
+                #fixed intial condition
+                "NUMGROUP" : 40,  
+                "numTypeBins" : 100,
+                "meanGamma0" : 0,
+                "stdGamma0" : 0.01,
+                "N0init" : 1.,
+                #host evolution settings
+                "HostEvolves" : True,
+                "sigmaR" : 0,
+                "sigmaMig" : 0,
+                "sigmaN0" : 0,
+                "sigmaHostInv" : 0
+        }
+
+    Output, OutputState, OutputStatePerH = run_model_fixed_parameters(model_par)
+
+    
+    
+    

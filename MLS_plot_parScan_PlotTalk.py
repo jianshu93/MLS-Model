@@ -25,7 +25,7 @@ saveNameMod = "FixedVariance"
 data_folder = Path("Data/")
 #fileName = "20181120_16h32_fixedcv"
 #fileName = "20181115_20h15_fixedvar"
-fileName = "20181121_08h38_fixedvar"
+fileName = "20190321_14h34_fixedvar"
 
 fileName = "parScan_" + fileName + ".npz"
 fileName = data_folder / fileName
@@ -34,7 +34,7 @@ save_folder = Path("Figures/")
 saveName = "heatmap"+now.strftime("_%Y-%m-%d_")+saveNameMod + ".pdf"
 saveName = save_folder / saveName
 
-file = np.load(fileName)
+file = np.load(fileName, allow_pickle=True)
 
 modelParList = file['modelParList']
 parRange = file['parRange']
@@ -526,15 +526,14 @@ tauPlot = 2
 rPlot = 0
 kPlot =0
 
-sigToPlot = [0, 1, 2, 3]
 
 gamma = parRange[gammaIndex]
-sigma = parRange[sigmaIndex][sigToPlot]
+sigma = parRange[sigmaIndex]
 
 lab = ['$\\sigma_f$= %.2g' %x for x in sigma]
 
 fracGammaSigma = data['F_mav_ss'][:, tauPlot, n0Plot, migPlot, rPlot, kPlot, :].squeeze()
-lin = axs.plot(gamma,fracGammaSigma[:,sigToPlot], '-o',linewidth=4, markersize=10)
+lin = axs.plot(gamma,fracGammaSigma, '-o',linewidth=4, markersize=10)
 
 lineColors = mpl.cm.get_cmap('viridis', len(lin)+1).colors
 for (i,c) in zip(lin, lineColors):

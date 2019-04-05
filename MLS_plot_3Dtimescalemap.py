@@ -22,8 +22,7 @@ import datetime
 from pathlib import Path
 
 #name of data to load
-fileName = "parScan_fixedVar_scanAll20190329_23h52_"
-fileName = "parScan_fixedVar_timeScalePlot20190331_17h27"
+fileName = "parScan_fixedVar_timeScalePlot20190403_18h52"
 #name of figure to save
 saveNameMod = "3D_Plot_HR"
 #set folders
@@ -52,8 +51,8 @@ mpl.rc('font', **font)
 mydpi=150
 fig.set_size_inches(w/mydpi,h/mydpi)
 
-#setup data
-#plot relative time scale of variation maintanance and heritability to host time scale
+#setup data plot relative time scale of variation maintainance and heritability
+#to host time scale
 xData = np.log10(data1D['tauVar'] / data1D['tau_H'] )
 yData = np.log10(data1D['tauHer'] / data1D['tau_H'] )
 zData = data1D['F_mav']

@@ -5,11 +5,11 @@ Created on March 29 2018
 @author:
 Simon van Vliet
 Department of Zoology
-University of Britisch Columbia
+University of British Columbia
 vanvliet@zoology.ca
 
 Make 3D scatter plot of fraction of cooperators as function
-of hertitability time and time of variance maintainance
+of heritability time and time of variance maintenance
 
 """
 # %%
@@ -25,7 +25,9 @@ from pathlib import Path
 from matplotlib import collections as matcoll
 
 # name of data to load
-fileName = "parScan_fixedVar_timeScalePlot20190403_18h52"
+
+fileName = "parScan_fixedVar_timeScalePlot20190405_14h28"
+#fileName = "parScan_fixedVar_timeScalePlot20190403_18h52"
 # name of figure to save
 saveNameMod = "3D_Plot_BH_sigma"
 # set folders
@@ -50,8 +52,7 @@ fig1 = plt.figure()
 fig2 = plt.figure()
 fig3 = plt.figure()
 
-w = 12
-h = 8
+
 mydpi = 150
 
 font = {'family': 'Arial',
@@ -59,9 +60,6 @@ font = {'family': 'Arial',
         'size': 9}
 mpl.rc('font', **font)
 
-fig1.set_size_inches(w, h)
-fig2.set_size_inches(w, h)
-fig3.set_size_inches(w, h)
 
 
 def bin_2Ddata(currXData, currYData, currZData, xbins, ybins):
@@ -142,7 +140,7 @@ def make2daxis(ax, xLim, yLim, stepsize):
 
 
 # setup data
-# plot relative time scale of variation maintainance and heritability to host time scale
+# plot relative time scale of variation maintenance and heritability to host time scale
 xData = np.log10(data1D['tauVar'] / data1D['tau_H'])
 yData = np.log10(data1D['tauHer'] / data1D['tau_H'])
 zData = data1D['F_mav']
@@ -173,6 +171,11 @@ rowName = data_file['parRange'][data_file['BH_idx']]
 rowName.sort()
 rowVar = 'B_H'
 
+w = 2.5 *nCol
+h = 2 * nRow
+fig1.set_size_inches(w, h)
+fig2.set_size_inches(w, h)
+fig3.set_size_inches(w, h)
 
 for rr in range(nRow):
     for cc in range(nCol):

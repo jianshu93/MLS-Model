@@ -70,11 +70,17 @@ Init functions
 #initialize community  
 def init_comm(model_par): 
     numGroup = int(model_par["NUMGROUP"])
-    #setup inital vector of c,d
-    cAct = np.full(numGroup, \
-                   model_par["N0init"] * model_par["F0"])
-    dAct = np.full(numGroup, \
-                   model_par["N0init"] * (1 - model_par["F0"]))
+    #setup initial vector of c,d
+
+    if model_par["F0"] == 'uniform':
+        #setup initial vector of c,d
+        cAct = model_par["N0init"] * np.linspace(0, 1, numGroup)
+        dAct = model_par["N0init"] - cAct
+    else:
+        cAct = np.full(numGroup, \
+                    model_par["N0init"] * model_par["F0"])
+        dAct = np.full(numGroup, \
+                    model_par["N0init"] * (1 - model_par["F0"]))
 
     #store in C-byte order 
     cAct = np.copy(cAct, order='C')
@@ -84,7 +90,7 @@ def init_comm(model_par):
 
 #initialize output matrix  
 def init_output_matrix(Num_t_sample):
-    #specify output fileds 
+    #specify output fields 
     dType = np.dtype([('F_T_av', 'f8'), \
                       ('N_T_av', 'f8'), \
                       ('H_T', 'f8'), \
@@ -112,14 +118,14 @@ def calc_mean_fraction(c, d):
     return (F_av,N_av)
 
 
-#calculate dirstribution of investments over host population
+#calculate distribution of investments over host population
 #@jit(f8[::1](f8[::1], f8[::1], f8[::1]), nopython=True)    
 def calc_perhost_inv_distri(c, d, binEdges):
     TOT = c + d #total density per host
     FRAC = c[TOT>0] / TOT[TOT>0] #cooperator fraction per host
     
     #get distribution of average cooperator fraction per host
-    avHostDens, bin_edges = np.histogram(FRAC, bins=binEdges)
+    avHostDens, _ = np.histogram(FRAC, bins=binEdges)
     avHostDens = avHostDens / np.count_nonzero([TOT>0])
     return avHostDens
 
@@ -209,14 +215,17 @@ def host_birth_composition_hypgeo(cPar, dPar, n0, K):
     N0int = np.random.poisson(N0Exp)
     N0int = max(N0int, numParInt)
     
-    #draw offspring composition from hypergiometric distribution  
-    if (N0int>0) & (numParInt>0):
-        cOffInt = st.hypergeom.rvs(numParInt, cParInt, N0int)
-        cOff = (cOffInt)/K
-        dOff = (N0int - cOffInt)/K    
-    else:
-        cOff = 0
-        dOff = 0       
+    try:
+        #draw offspring composition from hypergiometric distribution  
+        if (N0int>0) & (numParInt>0) & (numParInt>N0int):
+            cOffInt = st.hypergeom.rvs(numParInt, cParInt, N0int)
+            cOff = (cOffInt)/K
+            dOff = (N0int - cOffInt)/K    
+        else:
+            cOff = 0
+            dOff = 0   
+    except:
+        print('what?!')
     return (cOff, dOff)
 
 #choose which host will reproduce
@@ -224,7 +233,7 @@ def host_birth_composition_hypgeo(cPar, dPar, n0, K):
 def select_host_to_reproduce(c, randNum, B_H):
     #calculate propensity for each group
     BirthProp = (1 + B_H * c)
-    #randomly select group to reproduce, P proprtional to propensity
+    #randomly select group to reproduce, P proportional to propensity
     id_group = mlsg.select_random_event(BirthProp, randNum)
     return id_group    
 
@@ -254,14 +263,14 @@ def host_birth_event(c, d, randNum, model_par):
     else:
        raise Exception('Unknown sampling procedure')     
 
-    #make sure we don't transfer more than parent has    
-    if cOff > c[id_group]:
-        cOff = c[id_group]
-    if dOff > d[id_group]:
-        dOff = d[id_group]   
-    #take sample away from parent
-    c[id_group] -= cOff
-    d[id_group] -= dOff
+#    #make sure we don't transfer more than parent has    
+#    if cOff > c[id_group]:
+#        cOff = c[id_group]
+#    if dOff > d[id_group]:
+#        dOff = d[id_group]   
+#    #take sample away from parent
+#    c[id_group] -= cOff
+#    d[id_group] -= dOff
     #add new group to group matrix 
     cNew = np.append(c,cOff)
     dNew = np.append(d,dOff)
@@ -276,7 +285,7 @@ Host death functions
 def select_host_to_die(c, randNum, D_H):
     #calculate propensity for each group
     DeathProp = (1 - D_H * c)
-    #randomly select group to reproduce, P proprtional to propensity
+    #randomly select group to reproduce, P proportional to propensity
     id_group = mlsg.select_random_event(DeathProp, randNum)
     return id_group   
 
@@ -290,7 +299,7 @@ def host_death_event(c, d, randNum, model_parameter):
     dNew = np.delete(d,id_group)
     return (cNew, dNew)
         
-#calulate total host birth and death propensities 
+#calculate total host birth and death propensities 
 @jit(UniTuple(f8,2)(f8[::1],f8[::1],f8,f8,f8,f8,f8), nopython=True)
 def host_birth_death_propensity(c, d, dt, B_H, D_H, TAU_H, K_H):
     NumHost = c.size
@@ -307,7 +316,7 @@ def host_birth_death_propensity(c, d, dt, B_H, D_H, TAU_H, K_H):
 """
 Community dynamics functions 
 """     
-#updates communtity composition during timestep dt
+#updates community composition during timestep dt
 @jit(void(f8[::1],f8[::1],f8,f8,f8,f8), nopython=True)
 def update_comm(c, d, cost, mu, mig, dt):     
     nGroup = c.size
@@ -337,6 +346,17 @@ def update_comm(c, d, cost, mu, mig, dt):
     c += DC*dt
     d += DD*dt
     return            
+
+def test_host_prop(birthProp, deathProp, dt):
+    max_host_prop = birthProp + deathProp
+    p0 = np.exp(-max_host_prop * dt)
+    p1 = max_host_prop * dt * np.exp(-max_host_prop * dt)
+    p2 = 1 - p0 - p1
+    
+    if p2 > 0.01:
+        print('error, p2=%.2f is too high' %p2)
+        
+    return None 
 
 """
 Full model 
@@ -386,6 +406,8 @@ def run_model_fixed_parameters(model_par):
         #check if there is host event
         birthProp, deathProp = host_birth_death_propensity(CVec, DVec,\
                                                            dt, B_H, D_H, TAU_H, K_H)
+        
+        #test_host_prop(birthProp, deathProp, dt)
         
         if rndMat[ti,0] < birthProp:
             #process host birth event
@@ -514,7 +536,7 @@ def single_run_with_plot(MODEL_PAR):
     matplotlib.rc('font', **font)
     
     fig = plt.figure()
-    nR=2
+    nR=3
     nC=2
 
     #plot average investment  
@@ -526,8 +548,13 @@ def single_run_with_plot(MODEL_PAR):
 
     #plot host number investment  
     plt.subplot(nR,nC,2)  
-    plot_data(Output,"H_T")  
+    plot_data(Output,"H_mav")  
     plt.ylabel("H(t)") 
+    
+    
+    plt.subplot(nR,nC,5)  
+    plot_data(Output,"N_T_av")  
+    plt.ylabel("pop size") 
     
     #plot error
     plt.subplot(nR,nC,3)  
@@ -542,14 +569,14 @@ def single_run_with_plot(MODEL_PAR):
                     interpolation='nearest', \
                     extent=[0,1,0,1], \
                     origin='lower', \
-                    vmin=-2, vmax=-1,\
+                    vmin = -3,
                     aspect= 'auto')
     axs.set_xticks([0, 1])
     axs.set_yticks([0, 1])
     axs.set_ylabel('investment')
     axs.set_xlabel('time')
     cb = fig.colorbar(im, ax=axs, orientation='vertical', fraction=.1, label="log10 mean density")
-    cb.set_ticks([-2, -1])
+   # cb.set_ticks([-2, -1])
     axs.set_yticklabels([0, 1])
     maxTData =Output['time'].max()
     axs.set_xticklabels([0, int(round(maxTData))])
@@ -558,22 +585,22 @@ def single_run_with_plot(MODEL_PAR):
     fig.set_size_inches(4,4)
     plt.tight_layout()
 
-    return Output
+    return (Output, InvestmentPerHost)
 
 #run model with default parameters
 def debug_code():
     model_par = {
                 #time step parameters
-                "maxT"  : 20000., 
-                "sampleT": 10,
+                "maxT"  : 10000., 
+                "sampleT": 1,
                 "rms_err_treshold": 1E-5,
                 "mav_window": 1000,
                 "rms_window": 5000,
                 #fixed model parameters
-                "sampling" : "fixedvar",
-                "sigmaBirth" : 0.1,
-                "mu"    : 0.02,
-                "B_H"   : 3.,
+                "sampling" : "hypgeo",
+                "sigmaBirth" : 0.05,
+                "mu"    : 1E-5,
+                "B_H"   : 1.,
                 "D_H"   : 0.,
                 "K_H"   : 20.,
                 #variable model parameters
@@ -583,17 +610,17 @@ def debug_code():
                 "mig"   : 1E-5,
                 "K"     : 10E3,
                 #fixed intial condition
-                "NUMGROUP" : 10,  
+                "NUMGROUP" : 25,  
                 "numTypeBins" : 100,
                 "F0" : 0.5,
                 "N0init" : 1.
         }
     
-    gMat, Output, InvestmentAll, InvestmentPerHost = single_run_with_plot(model_par)
+    Output, InvestmentPerHost = single_run_with_plot(model_par)
     
-    return Output, InvestmentAll, InvestmentPerHost
+    return Output, InvestmentPerHost
 
 if __name__ == "__main__":
     print("running debug")
-    Output, InvestmentAll, InvestmentPerHost = debug_code()
+    Output, InvestmentPerHost = debug_code()
  

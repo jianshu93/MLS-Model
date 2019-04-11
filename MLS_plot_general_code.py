@@ -20,19 +20,19 @@ import matplotlib as mpl
 
 def calc_tauH(n0, theta, cost):
     # define constants
-    alpha = 1
+    beta = 1
     k = 1
-    # transition point between appoximations
-    theta_crit = (alpha * n0) / (k - 3 * n0)
+    # transition point between approximations
+    theta_crit = (beta * n0) / (k - 3 * n0)
     # approximation for theta > theta_crit
     lown = np.log((k * theta) / ((k + n0) * theta -
-                  n0 * alpha)) / (alpha - theta)
+                                 n0 * beta)) / (beta - theta)
     # approximation for n0 > n0_crit
-    highn1 = np.log(k * (alpha + theta) /
-                    (2 * (n0 * (alpha - theta) + k * theta)))
-    highn2 = np.log((n0 * (alpha - theta) + k * theta) /
-                    (2 * (n0 * (alpha + theta))))
-    highn = highn1 / (alpha - theta) - highn2 / theta
+    highn1 = np.log(k * (beta + theta) /
+                    (2 * (n0 * (beta - theta) + k * theta)))
+    highn2 = np.log((n0 * (beta - theta) + k * theta) /
+                    (2 * (n0 * (beta + theta))))
+    highn = highn1 / (beta - theta) - highn2 / theta
     # select right approximation tau_H
     lownMask = theta > theta_crit
     tauH = highn
@@ -92,14 +92,14 @@ def load_process_data(fileName):
 
     # calculate heritability time
     tauHer = calc_tauH(endStat_1D['n0'], endStat_1D['mig'],
-        endStat_1D['cost'])
+                       endStat_1D['cost'])
     endStat_1D = rf.append_fields(endStat_1D, 'tauHer',
-        np.squeeze(tauHer), usemask=False)
+                                  np.squeeze(tauHer), usemask=False)
 
-    # calculate varitaion maintainance time
+    # calculate variation maintainance time
     tauVar = calc_tauV(endStat_1D['cost'])
     endStat_1D = rf.append_fields(endStat_1D, 'tauVar',
-        np.squeeze(tauVar), usemask=False)
+                                  np.squeeze(tauVar), usemask=False)
 
     # convert to N-D matrix
     ndSize = [x.size for x in parRange]
@@ -160,47 +160,45 @@ def data_range(data1D, precision=1):
 
 # extract tick locations
 def data_ticks(dataRange, step):
-
-
-np.linspace(xLim[0], xLim[1], int(
-    nNeg=np.ceil((0-dataRange[0]) / step)
-    nPos=np.ceil(dataRange[1] / step)
-    ticks=np.linspace(-nNeg*step, nPos*step, (nNeg+nPos+1))
+    nNeg = np.ceil((0-dataRange[0]) / step)
+    nPos = np.ceil(dataRange[1] / step)
+    ticks = np.linspace(-nNeg*step, nPos*step, (nNeg+nPos+1))
 
     return ticks
 
 
 # %% Code below needs updating and checking
 def create_fig(nRow, nCol):
-    font={'family': 'Arial',
+    font = {'family': 'Arial',
             'weight': 'light',
             'size': 10}
 
     mpl.rc('font', **font)
 
-    fig, axs=plt.subplots(nRow, nCol)
-    w=14
-    h=6
+    fig, axs = plt.subplots(nRow, nCol)
+    w = 14
+    h = 6
     fig.set_figwidth(w, forward=True)
     fig.set_figheight(h, forward=True)
     return fig, axs
 
+
 def plot_heatmap(images, axs, data, xvec, yvec):
-    cmap="cool"
+    cmap = "cool"
 
-    currData=np.log10(data).transpose()
+    currData = np.log10(data).transpose()
 
-    axl=axs.imshow(currData, cmap=cmap, \
-                    interpolation='nearest', \
-                    extent=[xvec[0], xvec[-1], yvec[0], yvec[-1]], \
-                    origin='lower', \
-                    vmin=-3, vmax=0)
+    axl = axs.imshow(currData, cmap=cmap,
+                     interpolation='nearest',
+                     extent=[xvec[0], xvec[-1], yvec[0], yvec[-1]],
+                     origin='lower',
+                     vmin=-3, vmax=0)
 
-    xticks=[xvec[0], xvec[-1]]
-    xtickNames=["%.0f" % np.log10(x) for x in xticks]
+    xticks = [xvec[0], xvec[-1]]
+    xtickNames = ["%.0f" % np.log10(x) for x in xticks]
 
-    yticks=[yvec[0], yvec[-1]]
-    ytickNames=["%.0f" % np.log10(x) for x in yticks]
+    yticks = [yvec[0], yvec[-1]]
+    ytickNames = ["%.0f" % np.log10(x) for x in yticks]
 
     axs.set_xticks(xticks)
     axs.set_yticks(yticks)
@@ -218,35 +216,35 @@ def plot_heatmap(images, axs, data, xvec, yvec):
 
 def addAnnotation(curAx, labels):
     if len(labels) == 1:
-        curAx.text(0.05, 0.5, labels[0], \
-                horizontalalignment='left', \
-                verticalalignment='center', \
-                transform=curAx.transAxes)
+        curAx.text(0.05, 0.5, labels[0],
+                   horizontalalignment='left',
+                   verticalalignment='center',
+                   transform=curAx.transAxes)
     elif len(labels) == 2:
-        curAx.text(0.7, 0.5, labels[0], \
-                horizontalalignment='center', \
-                verticalalignment='bottom', \
-                transform=curAx.transAxes)
-        curAx.text(0.7, 0, labels[1], \
-                horizontalalignment='center', \
-                verticalalignment='bottom', \
-                transform=curAx.transAxes)
+        curAx.text(0.7, 0.5, labels[0],
+                   horizontalalignment='center',
+                   verticalalignment='bottom',
+                   transform=curAx.transAxes)
+        curAx.text(0.7, 0, labels[1],
+                   horizontalalignment='center',
+                   verticalalignment='bottom',
+                   transform=curAx.transAxes)
 
     curAx.set_axis_off()
     return
 
 
 def create_fig_keynote(nr, nc):
-    font={'family': 'Arial',
+    font = {'family': 'Arial',
             'weight': 'light',
             'size': 28}
 
     mpl.rc('font', **font)
 
-    fig, axs=plt.subplots(nr, nc)
-    mydpi=150
-    w=1800
-    h=1000
+    fig, axs = plt.subplots(nr, nc)
+    mydpi = 150
+    w = 1800
+    h = 1000
     fig.set_size_inches(w/mydpi, h/mydpi)
 
     return (fig, axs)

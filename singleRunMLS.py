@@ -17,25 +17,25 @@ import MLS_static as mlss
 
 model_par = {
                 #time step parameters
-                "maxT"  : 50000, 
-                "sampleT": 10,
+                "maxT"  : 5000, 
+                "sampleT": 1,
                 "rms_err_treshold": 1E-2,
                 "mav_window": 1000,
                 "rms_window": 5000,
                 #fixed model parameters
                 #"sampling" : "sample",
                 "sampling" : "fixedvar",
-                "mu"    : 5E-3,
-                "B_H"   : 3.,
+                "mu"    : 1E-5,
+                "B_H"   : 1.,
                 "D_H"   : 0,
-                "K_H"   : 50.,
+                "K_H"   : 25.,
                 #variable model parameters
                 "cost" : 0.01,
-                "TAU_H" : 10.,
+                "TAU_H" : 1E12,
                 "n0"    : 1E-3,
-                "mig"   : 1E-5,
+                "mig"   : 1E-9,
                 "r"     : 1.,
-                "K"     : 1E3,
+                "K"     : 10E3,
                 "hostInv0" : 0.,
                 #fixed intial condition
                 "NUMGROUP" : 50,  
@@ -50,8 +50,8 @@ model_par = {
                 "sigmaN0" : 0,
                 "sigmaHostInv" : 0.1,
                 #static settings
-                "sigmaBirth" : 0.01,
-                "F0" : 0.5
+                "sigmaBirth" : 0.2,
+                "F0" : 1
         }
 
 

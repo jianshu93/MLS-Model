@@ -54,7 +54,7 @@ n0_vec = np.array([n0])
 K_vec = np.array([1.]) 
 
 sigma_vec = np.array([0.2, 0.1, 0.05, 0.02, 0.01])
-B_vec = np.array([0.1, 0.5, 1, 2])
+B_vec = np.array([0]) #[0.1, 0.5, 1, 2])
 
 parOrder = np.array(['cost','tauH','n0','mig','K', 'sigma', 'B_H'])
 parRange = [cost_vec, tauH_vec, n0_vec, mig_vec, K_vec, sigma_vec, B_vec] 

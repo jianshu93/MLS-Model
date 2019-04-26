@@ -25,11 +25,13 @@ from pathlib import Path
 from matplotlib import collections as matcoll
 
 # name of data to load
+plotSub = True #set to false to plot data generated before april 2019
+fileName = "parScan_20190319_10h40_fixedvar_fast"
+fileName = "parScan_fixedVar_retestOldScan20190418_16h07"
 
-fileName = "parScan_fixedVar_timeScalePlot20190405_14h28"
-#fileName = "parScan_fixedVar_timeScalePlot20190403_18h52"
+#"parScan_fixedVar_timeScalePlot20190405_14h28"
 # name of figure to save
-saveNameMod = "3D_Plot_BH_sigma"
+namemod = "fast_highN"
 # set folders
 data_folder = Path("Data/")
 save_folder = Path("Figures/")
@@ -38,9 +40,9 @@ save_folder = Path("Figures/")
 fileName = fileName + ".npz"
 fileName = data_folder / fileName
 now = datetime.datetime.now()
-saveName = "3D_Surf_BH_sigma" + now.strftime("_%Y-%m-%d_") + ".pdf"
-saveName2 = "3D_Scat_BH_sigma" + now.strftime("_%Y-%m-%d_") + ".pdf"
-saveName3 = "3D_Heat_BH_sigma" + now.strftime("_%Y-%m-%d_") + ".pdf"
+saveName = "3D_Surf_BH_sigma" + now.strftime("_%Y-%m-%d_") + namemod +  ".pdf"
+saveName2 = "3D_Scat_BH_sigma" + now.strftime("_%Y-%m-%d_") + namemod +  ".pdf"
+saveName3 = "3D_Heat_BH_sigma" + now.strftime("_%Y-%m-%d_") + namemod +  ".pdf"
 
 
 # get data
@@ -147,7 +149,7 @@ zData = data1D['F_mav']
 
 # setup bin vectors
 xLim = (-2, 2)
-yLim = (-4, 6)
+yLim = (-6, 6)
 zLim = (0, 1)
 stepSize = (2, 4, 0.5)
 
@@ -165,11 +167,20 @@ colName = data_file['parRange'][data_file['sigmaB_idx']]
 colName.sort()
 colVar = '\\sigma_B'
 # variable to use for different subplots
-rowData = mlspg.make_categorial(data1D['B_H'])
-nRow = data_file['BH_n']
-rowName = data_file['parRange'][data_file['BH_idx']]
-rowName.sort()
-rowVar = 'B_H'
+
+
+if plotSub:
+    rowData = mlspg.make_categorial(data1D['B_H'])
+    nRow = data_file['BH_n']
+    rowName = data_file['parRange'][data_file['BH_idx']]
+    rowName.sort()
+    rowVar = 'B_H'
+else:
+    nRow = 1
+    rowName = np.array([np.nan])
+    rowVar = 'B_H'
+    rowData = np.zeros_like(colData)
+
 
 w = 2.5 *nCol
 h = 2 * nRow

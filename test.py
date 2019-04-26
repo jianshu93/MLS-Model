@@ -7,101 +7,112 @@ Created on Mon Apr  1 15:44:11 2019
 vanvliet@zoology.ubc.ca
 """
 
-import MLS_plot_general_code as mlspg
+import math
+import scipy.stats as st
+from scipy import special
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-import math
+import mls_general_code as mlsg
+
+
+def cdf_sp(x):
+    'Cumulative distribution function for the standard normal distribution'
+    return st.norm.cdf(x)
+
+
+#newT = st.truncnorm.rvs(minT, maxT) * std + exp
+
+
+def trunc_n(exp, std):
+    minX = (0 - exp) / std
+    maxX = (1 - exp) / std
+
+    return st.truncnorm.rvs(minX, maxX) * std + exp
+
+
+def inf_cdf1(x):
+    return st.norm.ppf(x)
+
+
+def norm_cdf(x):
+    'Cumulative distribution function for the standard normal distribution'
+    return (1.0 + math.erf(x / math.sqrt(2.0))) / 2.0
+
+
+def norm_inv_cdf(x):
+    return - math.sqrt(2.0) * special.erfcinv(2.0 * x)
+
+
+def trunc_n_fast(exp, std, rnd):
+    minX = norm_cdf((0 - exp) / std)
+    maxX = norm_cdf((1 - exp) / std)
+
+    rndRescaled = rnd * (maxX - minX) + minX
+
+    rndTrunc = norm_inv_cdf(rndRescaled) * std + exp
+
+    if rndTrunc < 0:
+        rndTrunc = 0
+    elif rndTrunc > 1:
+        rndTrunc = 1
+    return rndTrunc
+
+
+def t1(cumPropensity, randNumScaled):
+    # create index vector
+    index = np.arange(cumPropensity.size)
+    # select group
+    id_group = index[(cumPropensity > randNumScaled)][0]
+    return id_group
+
+
+def t2(cumPropensity, randNumScaled):    
+    # select group
+    id_group = (np.nonzero((cumPropensity > randNumScaled)))[0].min()
+    return id_group
+
+
+def t3(cumPropensity, randNumScaled):    
+    # select group
+    id_group = np.argwhere((cumPropensity > randNumScaled)).min()
+    return id_group
 
 
 
-def divSpace(center, dev, minDist, factor=0.5):
+CVec = np.arange(20)
+hasDied = np.zeros(20)
+hasDied[[2, 5, 7, 11, 19]] = 1
+CVecNew = np.arange(5) + 20
+def t4():
+    CVec1 = np.delete(CVec, np.nonzero(hasDied))
+    CVec1 = np.append(CVec1, CVecNew)
+    return CVec1
 
-    numstep = int(np.ceil(np.log(minDist/dev) / np.log(factor)))+1
-    
-    out = np.zeros(2*numstep+1)
-    
-    out[0] = center - dev
-    out[-1] = center + dev
-    out[numstep] = center
-    
-    for ii in range(1, numstep):
-        out[ii] = center - dev*factor**ii
-        out[-ii-1] = center + dev*factor**ii
-        
-    return out
-        
-
-#migToN0 = np.concatenate((  \
-#                      np.logspace(-4, -1, 20),   \
-#                      np.geomspace(0.1, 0.8, 12)[1:-1],   \
-#                      divSpace(1, 0.2, 0.001, factor=0.7), \
-#                      np.geomspace(1.2, 10, 8)[1:-1],   \
-#                      np.logspace(1, 4, 10) ))
-
-
-n0 = 1E-4
-cost = 0
-r = 0
-tauR = 100
-
-
-desiredTauH = np.logspace(-4.05, 4.05, 42) * tauR
-
-migToN0 = mlspg.mig_from_tauH(desiredTauH, n0)
-
-theta = migToN0 * n0 
-
-tau_H = mlspg.calc_tauH(n0, theta, cost) / tauR
+def t5():
+    CVec = np.concatenate((CVec[hasDied==0], CVecNew))
+    return CVec1
 
 
 
-fig = plt.figure()
-w = 400
-h = 400
-font = {'family' : 'Arial',
-        'weight' : 'light',
-        'size'   : 10}
-mpl.rc('font', **font)
-mydpi=150
-
-xVec = np.arange(migToN0.size)
 
 
-fig.set_size_inches(w/mydpi,h/mydpi)
-plt.semilogy(xVec,tau_H,'bo', markersize=1)
+def testCode(exp, std):
 
-plt.tight_layout()
-plt.draw()
+    N = int(1E5)
+    n_bins = 100
 
+    rnd = mlsg.create_randMat(int(N), 1)
 
+    y1 = np.zeros(N)
+    y2 = np.zeros(N)
 
-tauR = 100
+    for ii in range(N):
+        y1[ii] = trunc_n_fast(exp, std, rnd[ii])
+        y2[ii] = trunc_n(exp, std)
 
-tauVar_target = np.concatenate((  \
-                      np.logspace(-2, -1, 10),   \
-                      np.logspace(-1, 1, 30)[1:-1],   \
-                      np.logspace(1, 2, 10))) \
-                      * tauR
-                                
-                                
-cost_vec = 1 / tauVar_target
-                               
-xVec = np.arange(cost_vec.size)
+    fig, axs = plt.subplots(1, 2, sharey=True, tight_layout=True)
+    fig.set_size_inches(4, 3)
 
-fig = plt.figure()
-w = 400
-h = 400
-font = {'family' : 'Arial',
-        'weight' : 'light',
-        'size'   : 10}
-mpl.rc('font', **font)
-mydpi=150
-
-fig.set_size_inches(w/mydpi,h/mydpi)
-plt.semilogy(xVec,tauVar_target/tauR,'bo', markersize=1)
-
-plt.tight_layout()
-plt.draw()
-                                
-                                
+    # We can set the number of bins with the `bins` kwarg
+    axs[0].hist(y1, bins=n_bins)
+    axs[1].hist(y2, bins=n_bins)

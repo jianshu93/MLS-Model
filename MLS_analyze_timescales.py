@@ -8,8 +8,9 @@ vanvliet@zoology.ubc.ca
 """
 
 
-import MLS_plot_general_code as mlspg
-import MLS_static as mlss
+#import MLS_plot_general_code as mlspg
+#import MLS_static as mlss
+import MLS_static_fast as mlssf
 import numpy as np
 #import matplotlib.pyplot as plt
 import time
@@ -17,10 +18,10 @@ from joblib import Parallel, delayed
 import itertools
 import datetime
 from pathlib import Path
-import math
+#import math
 
 #%%
-dataName = 'fixedVar_timeScalePlot'
+dataName = 'fixedVar_retestOldScan'
 
 tau_H = 100.
 n0 = 1E-4
@@ -40,21 +41,29 @@ n0 = 1E-4
 
 
 
-desiredTauV = np.logspace(-2, 2, 50) * tau_H
-desiredTauH = np.logspace(-4, 6, 50) * tau_H
+#desiredTauV = np.logspace(-2, 2, 50) * tau_H
+#desiredTauH = np.logspace(-4, 6, 50) * tau_H
+#migToN0 = mlspg.mig_from_tauH(desiredTauH, n0)
+#cost_vec = 1 / desiredTauV
+#mig_vec = migToN0 * n0 
+#tauH_vec = np.array([tau_H])
+#n0_vec = np.array([n0])
+#K_vec = np.array([1.]) 
+#sigma_vec = np.array([0.2, 0.1, 0.05, 0.02, 0.01])
+#B_vec = np.array([0]) #[0.1, 0.5, 1, 2])
+#
 
-migToN0 = mlspg.mig_from_tauH(desiredTauH, n0)
 
 
-cost_vec = 1 / desiredTauV
-mig_vec = migToN0 * n0 
 
-tauH_vec = np.array([tau_H])
-n0_vec = np.array([n0])
+cost_vec = np.array([0.005, 0.01, 0.02, 0.05, 0.1])
+mig_vec = np.logspace(-9,-3,7)
+tauH_vec = np.logspace(1,3,5)
+n0_vec = np.logspace(-9,-3,7)
 K_vec = np.array([1.]) 
+sigma_vec = np.array([0.2])
+B_vec = np.array([3]) #[0.1, 0.5, 1, 2])
 
-sigma_vec = np.array([0.2, 0.1, 0.05, 0.02, 0.01])
-B_vec = np.array([0]) #[0.1, 0.5, 1, 2])
 
 parOrder = np.array(['cost','tauH','n0','mig','K', 'sigma', 'B_H'])
 parRange = [cost_vec, tauH_vec, n0_vec, mig_vec, K_vec, sigma_vec, B_vec] 
@@ -63,14 +72,15 @@ def createModelPar(input):
     modelPar = {
                 #fixed model parameters
                 "sampling" : "fixedvar",
-                "maxT"  : 40000., 
-                "sampleT": 1.,
-                "rms_err_treshold": 1E-2,
+                "maxT"  : 20000., 
+                "dT"  : 0.01, 
+                "sampleT": 10.,
+                "rms_err_treshold": 5E-2,
                 "mav_window": 1000,
                 "rms_window": 5000,
                 "mu"    : 1E-5,
                 "D_H"   : 0.,
-                "K_H"   : 30.,
+                "K_H"   : 1000.,
                 #scanned model parameters
                 "cost" : input[0],
                 "TAU_H" : input[1],
@@ -80,7 +90,7 @@ def createModelPar(input):
                 "sigmaBirth" : input[5],
                 "B_H"   : input[6],
                 #fixed intial condition
-                "NUMGROUP" : 30.,  
+                "NUMGROUP" : -1.,  
                 "F0" : 0.5,
                 "N0init" : 1., 
                 "numTypeBins" : 100
@@ -92,7 +102,7 @@ modelParList = [createModelPar(x) for x in itertools.product(*parRange)]
 #%%
 start = time.time()
 results = Parallel(n_jobs=4, verbose=9, timeout=1.E9) \
-    (delayed(mlss.single_run_finalstate)(par) for par in modelParList)
+    (delayed(mlssf.single_run_finalstate)(par) for par in modelParList)
 end = time.time()   
                  
 print("Elapsed time run 1 = %s" % (end - start))

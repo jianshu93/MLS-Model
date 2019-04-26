@@ -88,16 +88,25 @@ def load_process_data(fileName):
     parRange = file['parRange']
     parOrder = file['parOrder']
     endStat_1D = file['data']
-    distData = file['distData']
+    if 'distData' in file:
+        distData = file['distData']
+    else:
+        distData = None
+    file.close()
+
+    if 'cost' in endStat_1D.dtype.names:
+        costName = 'cost'
+    else:
+        costName = 'gamma'
 
     # calculate heritability time
     tauHer = calc_tauH(endStat_1D['n0'], endStat_1D['mig'],
-                       endStat_1D['cost'])
+                       endStat_1D[costName])
     endStat_1D = rf.append_fields(endStat_1D, 'tauHer',
                                   np.squeeze(tauHer), usemask=False)
 
     # calculate variation maintainance time
-    tauVar = calc_tauV(endStat_1D['cost'])
+    tauVar = calc_tauV(endStat_1D[costName])
     endStat_1D = rf.append_fields(endStat_1D, 'tauVar',
                                   np.squeeze(tauVar), usemask=False)
 
@@ -106,13 +115,19 @@ def load_process_data(fileName):
     endStat_ND = np.reshape(endStat_1D, ndSize)
 
     # get location of variables
-    cost_idx = np.asscalar(np.nonzero(parOrder == "cost")[0])
+    cost_idx = np.asscalar(np.nonzero(parOrder == costName)[0])
     tau_idx = np.asscalar(np.nonzero(parOrder == "tauH")[0])
     n0_idx = np.asscalar(np.nonzero(parOrder == "n0")[0])
     mig_idx = np.asscalar(np.nonzero(parOrder == "mig")[0])
     K_idx = np.asscalar(np.nonzero(parOrder == "K")[0])
     sigmaB_idx = np.asscalar(np.nonzero(parOrder == "sigma")[0])
-    BH_idx = np.asscalar(np.nonzero(parOrder == "B_H")[0])
+
+    if 'B_H' in parOrder:
+        BH_idx = np.asscalar(np.nonzero(parOrder == "B_H")[0])
+        BH_n = ndSize[BH_idx]
+    else:
+        BH_idx = None
+        BH_n = 0
 
     # save data and metadata
     data_file = {
@@ -127,7 +142,7 @@ def load_process_data(fileName):
         "tau_n": ndSize[tau_idx],
         "K_N": ndSize[K_idx],
         "sigmaB_n": ndSize[sigmaB_idx],
-        "BH_n": ndSize[BH_idx],
+        "BH_n": BH_n,
         "modelParList": modelParList,
         "parRange": parRange,
         "endStat_1D": endStat_1D,

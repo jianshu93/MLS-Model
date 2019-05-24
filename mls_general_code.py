@@ -9,6 +9,8 @@ Department of Zoology
 University of Britisch Columbia
 vanvliet@zoology.ubc.ca
 
+Contains varies functions used in MLS model code and in figure code
+
 """
 import math
 import numpy as np
@@ -25,20 +27,11 @@ addr = get_cython_function_address("scipy.special.cython_special", "ndtri")
 functype = ctypes.CFUNCTYPE(ctypes.c_double, ctypes.c_double)
 ndtri_fn = functype(addr)
 
-
-# @vectorize('float64(float64)')
-# def vec_ndtri(x):
-#    return ndtri_fn(x)
-# @jit(f8(f8[::1]), nopython=True)
-# def ndtri_in_njitvec(x):
-#    return vec_ndtri(x)
-
-
 """
  General functions
 """
 
-
+# %% Set figure size in cm
 def set_fig_size_cm(fig, w, h):
     cmToInch = 0.393701
     wInch = w * cmToInch
@@ -47,7 +40,7 @@ def set_fig_size_cm(fig, w, h):
     return None
 
 
-# create matrix with random numbers, excluding 0 and 1
+# %%create matrix with random numbers, excluding 0 and 1
 def create_randMat(num_t, num_rand):
     notDone = True
     while notDone:
@@ -59,7 +52,8 @@ def create_randMat(num_t, num_rand):
 
     return randMat
 
-# calculate timestep to have max 1 host level event per step
+
+# %%calculate timestep to have max 1 host level event per step
 @jit(f8(f8, f8[:]), nopython=True)
 def calc_max_time_step(max_host_prop, dtVec):
     max_p2 = 0.01
@@ -72,29 +66,30 @@ def calc_max_time_step(max_host_prop, dtVec):
     dtMax = max(dtMax, dtVec.min())
     return dtMax
 
-# fast implementation normal cdf
+
+# %% fast implementation of normal distribution
+#JIT compatible normal cdf    
 @jit(f8(f8), nopython=True)
 def norm_cdf(x):
     'Cumulative distribution function for the standard normal distribution'
     return (1.0 + math.erf(x / math.sqrt(2.0))) / 2.0
 
-# fast implementation inverse normal cdf
-
-
+# inverse normal cdf
 def norm_inv_cdf(x):
     return - math.sqrt(2.0) * special.erfcinv(2.0 * x)
 
-
+# Cython version of Scipy ndtri function (inv cdf)
 @jit(f8(f8), nopython=True)
 def ndtri_in_njit(x):
     return ndtri_fn(x)
 
-# fast implementation inverse normal cdf, jit compatible
+#JIT compatible inverse cdf    
 @jit(f8(f8), nopython=True)
 def norm_inv_cdf_jit(x):
     return ndtri_in_njit(x)
 
 # convert rand num with uniform distribution to one with trunc norm distribution
+    #fast JIT compatible version
 @jit(f8(f8, f8, f8, f8, f8), nopython=True)
 def trunc_norm_fast(exp, std, minV, maxV, rnd):
     minX = norm_cdf((minV - exp) / std)
@@ -108,6 +103,8 @@ def trunc_norm_fast(exp, std, minV, maxV, rnd):
     return rndTrunc
 
 
+# convert rand num with uniform distribution to one with trunc norm distribution
+#Non JIT version
 def trunc_norm(exp, std, min=-np.inf, max=np.inf, type='lin'):
     # log transform data if needed
     if type == 'log':
@@ -126,7 +123,8 @@ def trunc_norm(exp, std, min=-np.inf, max=np.inf, type='lin'):
         newT = 10 ** newT
     return newT
 
-# random sample based on propensity
+
+# %%random sample based on propensity
 @jit(i8(f8[::1], f8), nopython=True)
 def select_random_event(propensity_vec, randNum):
     # calculate cumulative propensities
@@ -140,7 +138,9 @@ def select_random_event(propensity_vec, randNum):
 
     return id_group
 
-# calculate moving average of time vector
+
+# %% Model sampling functions
+#calculate moving average of time vector
 @jit(UniTuple(f8, 2)(f8[:], i8, i8), nopython=True)
 def calc_moving_av(f_t, curr_idx, windowLength):
     # get first time point
@@ -150,6 +150,7 @@ def calc_moving_av(f_t, curr_idx, windowLength):
 
     return (movingAv, movindStd)
 
+
 # calculate moving median of time vector
 @jit(f8(f8[:], i8, i8), nopython=True)
 def calc_moving_med(f_t, curr_idx, windowLength):
@@ -158,6 +159,7 @@ def calc_moving_med(f_t, curr_idx, windowLength):
     movingMed = np.median(f_t[start_idx:curr_idx])
 
     return movingMed
+
 
 # calculate rms error of time vector
 @jit(f8(f8[:], i8, i8), nopython=True)
@@ -175,6 +177,17 @@ def calc_rms_error(mav_t, curr_idx, windowLength):
     return rms_err
 
 
+#%% convert value with continuos categorial states to labeled categorial states
+def make_categorial(vector):
+    elements = np.unique(vector)
+    indexVec = np.arange(elements.size)
+    cat_vector = np.zeros(vector.size)
+    for idx in range(vector.size):
+        cat_vector[idx] = indexVec[elements == vector[idx]]
+    return cat_vector
+
+
+# %% Model timescale functions
 # calc timescales from model_par
 def calc_timescale(model_par):
     # get constants
@@ -188,6 +201,7 @@ def calc_timescale(model_par):
     return (tauHer, tauVar)
 
 
+# calc hertitability timescale, fast JIT implementation
 @vectorize([f8(f8, f8)], nopython=True)
 def calc_tauH(n0, theta):
     beta = 1
@@ -208,13 +222,14 @@ def calc_tauH(n0, theta):
     return tauHer
 
 
+# calc timescale over which Helper cells decrease, fast JIT implementation
 @vectorize([f8(f8)])
 def calc_tauV(cost):
     tauVar = 1. / cost
     return tauVar
 
 
-# create tauH spacingVec
+# create tauH spacingVec - > estimate model parameters to use to get even spaced tauH values
 def mig_from_tauH(desiredTauH, n0):
     n0theta = np.zeros(desiredTauH.size)
     n0thetaTry = np.logspace(-6, 6, 1E6)
@@ -224,16 +239,6 @@ def mig_from_tauH(desiredTauH, n0):
         n0theta[ii] = n0thetaTry[idx]
 
     return n0theta
-
-
-# convert value with continuos categorial states to labeled categorial states
-def make_categorial(vector):
-    elements = np.unique(vector)
-    indexVec = np.arange(elements.size)
-    cat_vector = np.zeros(vector.size)
-    for idx in range(vector.size):
-        cat_vector[idx] = indexVec[elements == vector[idx]]
-    return cat_vector
 
 
 # Exact equation for heritability time, pop density
@@ -249,6 +254,7 @@ def calc_tauHer_nt(t, n0, theta, beta, k):
     return n_t
 
 
+
 # Exact equation for heritability time, frac vertically transmitted
 @vectorize([f8(f8, f8, f8, f8, f8)], nopython=True)
 def calc_tauHer_ft(t, n0, theta, beta, k):
@@ -261,7 +267,7 @@ def calc_tauHer_ft(t, n0, theta, beta, k):
     return f_t
 
 
-# Exact equation for heritability time, frac vertically transmitted
+# Exact equation for heritability time, equation to solve to find tau_her (f_vert-0.5=0)
 @jit(f8(f8, f8, f8), nopython=True)
 def calc_tauHer_fthalf(t, n0, theta):
     beta = 1
@@ -270,11 +276,52 @@ def calc_tauHer_fthalf(t, n0, theta):
     return f_th
 
 
+# Numerically solve for Heritability time
 @vectorize([f8(f8, f8)])
 def calc_tauHer_numeric(n0, theta):
-    par = (n0, theta)
     tauH_est = calc_tauH(n0, theta)
+    par = (n0, theta)
     tauH = opt.brentq(calc_tauHer_fthalf, tauH_est/100, tauH_est * 100, par)
+    return tauH
+
+
+#Approximate analytical solution of heritability time
+@vectorize([f8(f8, f8, f8)], nopython=True)
+def calc_tauH_w_cost(n0, theta, cost):
+    beta = 1 - cost
+    k = 1
+    # transition point between approximations
+    theta_crit = (beta * n0) / (k - 3 * n0)
+    if theta > theta_crit:
+        # approximation for theta > theta_crit
+        tauHer = np.log((k * theta) / ((k + n0) * theta -
+                                       n0 * beta)) / (beta - theta)
+    else:
+        # approximation for n0 > n0_crit
+        highn1 = np.log(k * (beta + theta) /
+                        (2 * (n0 * (beta - theta) + k * theta)))
+        highn2 = np.log((n0 * (beta - theta) + k * theta) /
+                        (2 * (n0 * (beta + theta))))
+        tauHer = highn1 / (beta - theta) - highn2 / theta
+    return tauHer
+
+
+# Exact equation for heritability time, frac vertically transmitted
+@jit(f8(f8, f8, f8, f8), nopython=True)
+def calc_tauHer_fthalf_w_cost(t, n0, theta, cost):
+    beta = 1 - cost
+    k = 1
+    f_th = calc_tauHer_ft(t, n0, theta, beta, k) - 0.5
+    return f_th
+
+
+# Numerically solve for Heritability time, use helper growth rate
+@vectorize([f8(f8, f8, f8)])
+def calc_tauHer_numeric_w_cost(n0, theta, cost):
+    tauH_est = calc_tauH_w_cost(n0, theta, cost)
+    par = (n0, theta, cost)
+    tauH = opt.brentq(calc_tauHer_fthalf_w_cost,
+                      tauH_est/100, tauH_est * 100, par)
     return tauH
 
 

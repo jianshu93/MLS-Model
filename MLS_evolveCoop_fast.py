@@ -2,12 +2,15 @@
 # -*- CoDing: utf-8 -*-
 """
 CreateD on WeD OCt 17 12:25:24 2018
-Last Update March 22 2019
+Last Update May 22 2019
 
 @author: simonvanvliet
 Department of Zoology
 University of Britisch Columbia
 vanvliet@zoology.ubc.ca
+
+This code implements the continuos investment model. 
+
 
 """
 import mls_general_code as mlsg
@@ -18,7 +21,8 @@ import matplotlib.pyplot as plt
 import time
 from numba import jit, void, f8, i8 
 from numba.types import UniTuple, Tuple
-
+import datetime
+from pathlib import Path
 
 """
 Time step functions 
@@ -93,7 +97,7 @@ def calc_mean_fraction(gMat, gammaVec, nGroup):
     N_av = totDensity / nGroup
     return (F_av,N_av)
 
-#calculate dirstribution of investments over host population
+#calculate distribution of investments over host population
 @jit(f8[::1](f8[:,::1], f8[::1]))    
 def calc_perhost_inv_distri(gMat,gammaVec):
     nGroup = gMat.shape[0]
@@ -249,7 +253,6 @@ def update_host(gMat, cumulPropVec, numSubStep, n0, K, rndMat, ridx):
 """
 Community dynamics functions 
 """
-
 #create matrix for birth and mutation event 
 def create_local_update_matrix(r, mu, cost, numBins):
     #setup investment vector
@@ -300,7 +303,6 @@ def update_comm_loc(gMat, locBirthMut, r, mig, dt):
 """
 Full model 
 """
-
 ##run model main code
 def run_model_fixed_parameters(model_par):
     #possible dt to choose from
@@ -309,7 +311,6 @@ def run_model_fixed_parameters(model_par):
     # get time settings
     dtBac, maxT, samplingInterval = [
         float(model_par[x]) for x in ('dT', 'maxT', 'sampleT')]
-
     if 'minTRun' in model_par:
         minTRun = min(model_par['minTRun'], maxT)
     else:
@@ -324,7 +325,6 @@ def run_model_fixed_parameters(model_par):
     r, mu, mig, cost = [float(model_par[x]) for x in ('r','mu','mig', 'cost')]
     # get reproduction rates
     n0, K = [float(model_par[x]) for x in ('n0', 'K')]
-    
     numBins = int(model_par['numTypeBins'])
    
     # set limit on nr of rand number to preload
@@ -399,21 +399,23 @@ Run Full model
 """
 
 ##run model, store final state only
-def single_run_finalstate(MODEL_PAR):
-    
+def single_run_finalstate(MODEL_PAR): 
     gMat, Output, InvestmentAll, InvestmentPerHost = run_model_fixed_parameters(MODEL_PAR)
-            
     dType = np.dtype([ \
               ('F_T_av', 'f8'), \
               ('F_mav', 'f8'), \
               ('F_mav_ss', 'f8'),\
               ('N_T_av', 'f8'), \
               ('H_T', 'f8'),   \
-              ('gamma', 'f8'), \
-              ('tau_H', 'f8'), \
+              ('cost', 'f8'), \
+              ('TAU_H', 'f8'), \
               ('n0', 'f8'),  \
               ('mig', 'f8'), \
               ('r', 'f8'),   \
+              ('B_H', 'f8'),   \
+              ('D_H', 'f8'),   \
+              ('K_H', 'f8'),   \
+              ('mu', 'f8'),   \
               ('K', 'f8')])     
 
     output_matrix = np.zeros(1, dType)
@@ -433,14 +435,18 @@ def single_run_finalstate(MODEL_PAR):
     output_matrix['N_T_av'] = Output['N_T_av'][-1]
     output_matrix['H_T'] = Output['H_T'][-1]
 
-    output_matrix['gamma'] = MODEL_PAR['gamma']
-    output_matrix['tau_H'] = MODEL_PAR['TAU_H']
+    output_matrix['cost'] = MODEL_PAR['cost']
+    output_matrix['TAU_H'] = MODEL_PAR['TAU_H']
     output_matrix['n0'] = MODEL_PAR['n0']
     output_matrix['mig'] = MODEL_PAR['mig']
     output_matrix['r'] = MODEL_PAR['r']
     output_matrix['K'] = MODEL_PAR['K']   
+    output_matrix['B_H']=MODEL_PAR['B_H']
+    output_matrix['D_H']=MODEL_PAR['D_H']
+    output_matrix['K_H']=MODEL_PAR['K_H']
+    output_matrix['mu']=MODEL_PAR['mu']
     
-    return output_matrix
+    return (output_matrix, InvestmentPerHost)
 
 def plot_data(dataStruc, FieldName, type='lin'):
     if type == 'lin':
@@ -503,7 +509,6 @@ def single_run_with_plot(MODEL_PAR):
     axs.set_yticklabels([0, 1])
     maxTData =Output['time'].max()
     axs.set_xticklabels([0, int(round(maxTData))])
-  
         
     #plot average investment per host
     axs= plt.subplot(nR,nC,4)  
@@ -526,9 +531,30 @@ def single_run_with_plot(MODEL_PAR):
 
     fig.set_size_inches(4,4)
     plt.tight_layout()
-
     return (gMat, Output, InvestmentAll, InvestmentPerHost)
 
+
+#run model, plot dynamics, save output to disk
+def single_run_plot_save(MODEL_PAR):
+    gMat, Output, InvestmentAll, InvestmentPerHost = single_run_with_plot(
+        MODEL_PAR)
+    
+    varToGet = ('maxT','mu','B_H','D_H','K_H','cost','TAU_H','n0','mig','K','sampling')
+    varList = ['-{}_{}'.format(x, MODEL_PAR[x]) for x in varToGet]
+    
+    savename = 'mlsef' + ''.join(varList) + '.npz'
+
+    data_folder = Path("Data_Runs/")
+    loc = data_folder / savename
+
+    np.savez(loc, gMat=gMat, InvestmentAll=InvestmentAll,
+             InvestmentPerHost=InvestmentPerHost, Output=Output,
+             MODEL_PAR=[MODEL_PAR], date=datetime.datetime.now())
+    
+    print('saved as {}'.format(loc))
+    
+    return None
+    
 #run model with default parameters
 def debug_code():
     model_par = {
@@ -567,25 +593,3 @@ def debug_code():
 if __name__ == "__main__":
     print("running debug")
     Output, InvestmentAll, InvestmentPerHost = debug_code()
- 
-
- # #take contiouns sample from parent community
-# def host_birth_composition_contsample(parComp, gammaVec, n0, K):
-#     Num0 = max(int(np.ceil(n0*K)),2)
-#     probDens = parComp / parComp.sum()
-#     sampMeanExp = probDens.dot(gammaVec)
-#     centralDev = (gammaVec - sampMeanExp)**2
-#     sampMeanVar = probDens.dot(centralDev)
-#     sampMeanStd = math.sqrt(sampMeanVar / Num0)
-#     sampMean = trunc_norm(sampMeanExp, sampMeanStd, min=0, max=1, type='lin')
-#     isDone = False
-#     offComp = parComp
-#     while not isDone:
-#         sampStd = math.sqrt((st.chi2.rvs(1) * sampMeanVar) / (Num0-1))
-#         zVec = (gammaVec - sampMean) / sampStd    
-#         offComp = st.norm.pdf(zVec)
-#         if not offComp.sum()==0:
-#             offComp *= (n0 / offComp.sum())
-#             if not np.any(np.isnan(offComp)):
-#                 isDone = True
-#     return offComp

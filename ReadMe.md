@@ -1,10 +1,10 @@
-#Readme 
+# Readme 
 
-##Author: simonvanvliet
+## Author: simonvanvliet
 vanvliet@zoology.ubc.ca
 
 
-##The following Code is supplied:
+## The following Code is supplied:
 
 ### MODEL CODE 
 #### MLS_static_fast.py
@@ -24,7 +24,7 @@ Code provides explanantion of model parameters, allows user to quickly set param
 
 
 ### Figure CODE
-####MLS_figure_X.py
+#### MLS_figure_X.py
 Run to recreate figures describes in Manuscript
 Each code tries to load existing data file fron Data_Paper folder and uses this to make figures
 If data file cannot be found, or if parameters have changed, the model is rerun 

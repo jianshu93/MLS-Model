@@ -1,6 +1,7 @@
 #ignore folders
 Data/
 Figures/
+Figures_Paper/
 profile/
 __pycache__/
 .vscode/

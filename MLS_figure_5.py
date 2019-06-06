@@ -41,24 +41,21 @@ fig_Folder = Path("Figures_Paper/")
 figureName = 'figure5.pdf'
 
 # set model parameters
-tau_H = 1000
+tau_H = 100
 tauVRange = (-2, 2)
 nStep = 50
-sigma_vec = [0.02, 0.03, 0.04, 0.5, 0.1, 0.2]
+sigma_vec = [0.02, 0.03, 0.04, 0.1, 0.2, 0.5]
 
 model_par = {
     # selection strength settings
     "s": 1,
-    "K_H": 1000.,
-    "B_H": 1.,
+    "K_H": 500.,
     "D_H": 0.,
     # tau_var settings
-    "cost": 0.01,
     "TAU_H": tau_H,
-    "sigmaBirth": 0.1,
     # tau_mig settings
-    "n0": 1E-3,
-    "mig": 1E-5,
+    "n0": 1E-4,
+    "mig": 1E-6,
     # init conditions
     "F0": 0.01,
     "N0init": 1.,
@@ -67,16 +64,18 @@ model_par = {
     "maxT": 150000,
     "dT": 5E-2,
     "sampleT": 10,
-    "rms_err_treshold": 5E-10,
-    "minTRun": 50000,
+    "rms_err_treshold": 5E-2,
     "mav_window": 1000,
     "rms_window": 10000,
+    "minTRun": 25000,
     # fixed model parameters
     "sampling": "fixedvar",
     "mu": 1E-9,
-    "K": 1E3,
+    "K": 1,
     "numTypeBins": 100
 }
+
+
 
 # calc other parameters
 desiredTauV = np.logspace(*tauVRange, nStep) * tau_H
@@ -219,8 +218,8 @@ def process_data(statData):
     tauHer = mlsg.calc_tauHer_numeric(
         statData['n0'], statData['mig'])
     tauVar = mlsg.calc_tauV(statData['cost'])
-    tauHerRel = tauHer/statData['tau_H']
-    tauVar_rel = tauVar/statData['tau_H']
+    tauHerRel = tauHer/statData['TAU_H']
+    tauVar_rel = tauVar/statData['TAU_H']
     sigma_cat = mlsg.make_categorial(statData['sigmaBirth'])
     BH_cat = mlsg.make_categorial(statData['B_H'])
     dataToStore = (tauHer, tauVar, tauHerRel, tauVar_rel, sigma_cat, BH_cat)

@@ -45,7 +45,7 @@ model_par = {
     "sigmaBirth": 0.05,
     # tau_mig settings
     "n0": 1E-3,
-    "mig": 1E-5,
+    "mig": 1E-6,
     # init conditions
     "F0": 0.5,
     "N0init": 1.,

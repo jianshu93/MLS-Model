@@ -210,7 +210,7 @@ def plot_tauH_heatmap(fig, axs, cbaxes):
 # create figure
 def create_fig():
     # set settings
-    n0 = 1E-3
+    n0 = 1E-4
     mig1 = 0.5 * n0
     mig_vec_rel = [0.1, 0.5, 2, 10]
 

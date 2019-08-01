@@ -238,7 +238,8 @@ def plot_line(axs, Output, FieldName, yAxis, maxX, legendLoc):
     axs.set_xticks(np.linspace(0, maxX, xStep))
     axs.set_yticks(np.linspace(0, maxY, yStep))
     #axs.legend(('$s_b$=%.0f' % model_par['s'], '$s_b$=0'), loc='center right')
-    axs.legend(handle_list, ['$s_b$=%.0f' % x for x in sb], loc=legendLoc)
+    if legendLoc != 'none':
+        axs.legend(handle_list, ['$s_b$=%.0f' % x for x in sb], loc=legendLoc)
     
     if yAxis:
         axs.set_ylabel("mean frac. helpers $\\langle f \\rangle$")
@@ -308,8 +309,8 @@ def create_fig():
         else:
             yAxis = False
             
-        if i>2:
-            legendLoc = 'center right'
+        if i>1:
+            legendLoc = 'none'
         
         startP = int(i*numElLoc)
         endP = int((i+1)*numElLoc)

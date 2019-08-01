@@ -57,7 +57,7 @@ model_par = {
     # tau_var settings
     "TAU_H": tau_H,
     "sigmaBirth": 0.05,
-    "cost": 1/(tau_H*10),
+    "cost": 1/(tau_H*100),
     # tau_mig settings
     "n0": 1E-4,
     "mig": n0/100,
@@ -441,7 +441,7 @@ def plot_histogram_line(axs, data):
 
     print(dataMav1.sum(), dataMav2.sum(),)
     # make plot nice
-    maxY = 0.04
+    maxY = 0.06
     maxX = 1
     xStep = 3
     yStep = 3

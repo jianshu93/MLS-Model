@@ -241,7 +241,7 @@ def select_data(data1D, BHidx, sigmaidx):
 
 # make 3D scatter plot
 def plot_3D(ax, data1D, sigmaIndex):
-    BHidx = 0
+    BHidx = 1
     x, y, z = select_data(data1D, BHidx, sigmaIndex)
     ax.scatter(x, y, z,
                c=z,
@@ -302,7 +302,7 @@ def bin_2Ddata(currXData, currYData, currZData, xbins, ybins):
 
 # make heatmap
 def plot_heatmap(fig, ax, data1D, sigmaIndex):
-    BHidx = 0
+    BHidx = 1
     xStep = 0.25
     yStep = 0.5
     xbins = np.linspace(*tauVRange, int(

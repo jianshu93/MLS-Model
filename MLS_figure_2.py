@@ -131,6 +131,13 @@ def set_BD(bh, dh):
     return model_par_local
 
 
+# calcualte moving average over time
+def calc_mav(data):
+    dataMAV = data[-model_par['mav_window']:, :]
+    dataMAV = np.nanmean(data, axis=0)
+    return dataMAV
+
+
 # run model
 def run_model():
     # set modelpar list to run
@@ -146,11 +153,17 @@ def run_model():
     # process and store output
     Output, InvPerHost, _, _ = zip(*results)
     saveName = data_folder / dataName
-    np.savez(saveName, OutputB=Output[0], InvPerHostB=InvPerHost[0],
-             OutputNS=Output[1], InvPerHostNS=InvPerHost[1],
+    
+    #get end distribution investment
+    InvPerHostB = calc_mav(InvPerHost[0])
+    InvPerHostNS = calc_mav(InvPerHost[1])
+    invPerHostEnd = (InvPerHostB, InvPerHostNS)
+    
+    np.savez(saveName, OutputB=Output[0], InvPerHostB=InvPerHostB,
+             OutputNS=Output[1], InvPerHostNS=InvPerHostNS,
              modelParList=modelParList, date=datetime.datetime.now())
 
-    return(Output, InvPerHost)
+    return(Output, invPerHostEnd)
 
 
 # checks of model parmaters have changed
@@ -211,19 +224,12 @@ def plot_line(axs, dataStruc, FieldName):
     return
 
 
-# calcualte moving average over time
-def calc_mav(data):
-    dataMAV = data[-model_par['mav_window']:, :]
-    dataMAV = np.nanmean(data, axis=0)
-    return dataMAV
 
 # plot histogram chart
-
-
 def plot_histogram_line(axs, data):
     # calc moving average
-    dataMav1 = calc_mav(data[0])
-    dataMav2 = calc_mav(data[1])
+    dataMav1 = data[0]
+    dataMav2 = data[1]
     # get bin centers
     bins = np.linspace(0, 1, dataMav1.size+1)
     x = (bins[1:] + bins[0:-1]) / 2

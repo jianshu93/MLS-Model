@@ -183,6 +183,13 @@ def run_model():
     return statData
 
 
+#calc moving av over 2D matrix
+def calc_mav(data):
+    dataMAV = data[-model_par['mav_window']:, :]
+    dataMAV = np.nanmean(data, axis=0)
+    return dataMAV
+
+
 #run model - single parameter set - time dynamics
 def run_model_single():
     model_par_D = model_par.copy()
@@ -202,13 +209,18 @@ def run_model_single():
 
     # process and store output
     Output, InvPerHost, _, _ = zip(*results)
-
+    
+    #get end distribution investment
+    InvPerHostB = calc_mav(InvPerHost[0])
+    InvPerHostD = calc_mav(InvPerHost[1])
+    invPerHostEnd = (InvPerHostB, InvPerHostD)
+    
     saveName = data_folder / 'data_FigureSI2_part2.npz'
     np.savez(saveName, OutputB=Output[0], OutputD=Output[1],
-             InvPerHostB = InvPerHost[0], InvPerHostD = InvPerHost[1], 
+             InvPerHostB = InvPerHostB, InvPerHostD = InvPerHostD, 
              modelParList=modelParList, date=datetime.datetime.now())
 
-    return (Output, InvPerHost)
+    return (Output, invPerHostEnd)
 
 
 
@@ -415,18 +427,11 @@ def plot_heatmap(fig, ax, data1D):
     ax.set_ylabel('$log_{10} \\frac{n_0/k}{\\theta/\\beta}$')
     return None
 
-
-def calc_mav(data):
-    dataMAV = data[-model_par['mav_window']:, :]
-    dataMAV = np.nanmean(data, axis=0)
-    return dataMAV
-
-
 #plot distributions
 def plot_histogram_line(axs, data):
     # calc moving average
-    dataMav1 = calc_mav(data[0])
-    dataMav2 = calc_mav(data[1])
+    dataMav1 = data[0]
+    dataMav2 = data[1]
     # get bin centers
     bins = np.linspace(0, 1, dataMav1.size+1)
     x = (bins[1:] + bins[0:-1]) / 2

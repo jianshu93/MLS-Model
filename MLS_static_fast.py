@@ -223,33 +223,27 @@ Community dynamics functions
 @jit(void(f8[::1], f8[::1], f8, f8, f8, f8), nopython=True)
 def update_comm(c, d, cost, mu, mig, dt):
     nGroup = c.size
+    fh = 1 / (nGroup - 1) #fraction of migrants per host
+    n = c + d #tot pop size
     if nGroup > 1:
         # calc derivatives
         c += dt * (
-            (1 - mu) * (1 - cost) * c
+            c * ((1 - mu) * (1 - cost) - n - (1 + fh) * mig)
             + mu * d
-            - (c + d) * c
-            - (1 + 1 / (nGroup - 1)) * mig * c
-            + 1 / (nGroup - 1) * mig * c.sum())
+            + fh * mig * c.sum())
         d += dt * (
-            (1 - mu) * d
+            d * ((1 - mu) - n - (1 + fh) * mig)
             + mu * (1 - cost) * c
-            - (c + d) * d
-            - (1 + 1 / (nGroup - 1)) * mig * d
-            + 1 / (nGroup-1) * mig * d.sum())
+            + fh * mig * d.sum())
     else:  # no migration
         # calc derivatives
         c += dt * (
-            (1 - mu) * (1 - cost) * c
-            + mu * d
-            - (c+d) * c
-            - mig * c)
+            c * ((1 - mu) * (1 - cost) - n - mig)
+            + mu * d)
         d += dt * (
-            (1 - mu) * d
-            + mu * (1 - cost) * c
-            - (c+d) * d
-            - mig * d)
-
+            d * ((1 - mu) - n - mig)
+            + mu * (1 - cost) * c)
+        
     return
 
 

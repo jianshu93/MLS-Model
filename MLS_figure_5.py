@@ -241,7 +241,7 @@ def plot_helper_frac(axs, cost_vec):
     f0_vec = [0.9, 0.3]
 
     colors = sns.color_palette("Blues_d", n_colors=2*len(cost_vec)+1)
-    handle_list = []
+    handle_list = [0] * 2
     lineStyle = ['-', '--', '-.', ':']
 
     # calculate fraction helper analytically
